@@ -1,8 +1,7 @@
-"""Final NERA DROPO UI layer.
+"""NERA DROPO inline UI with custom icons and Telegram's default button style.
 
-Adds custom-emoji icons + styles to inline buttons (Bot API 9.4+) and then
-starts branded_bot. Requires python-telegram-bot 22.7+ and a bot owner with
-Telegram Premium (or a bot with eligible Fragment usernames) for custom button icons.
+Button colours are deliberately not overridden. The existing emoji IDs,
+callback actions and target URLs are preserved.
 """
 
 import branded_bot as bb
@@ -15,11 +14,10 @@ def icon_id(key):
     return value or None
 
 
-def button(text, *, key=None, style=None, **kwargs):
+def button(text, *, key=None, **kwargs):
     return InlineKeyboardButton(
         text=text,
         icon_custom_emoji_id=icon_id(key) if key else None,
-        style=style,
         **kwargs,
     )
 
@@ -27,12 +25,12 @@ def button(text, *, key=None, style=None, **kwargs):
 def user_menu(is_admin=False):
     rows = [
         [
-            button("MANO INVITE", key="invite", style="primary", callback_data="my_link"),
-            button("MANO TAŠKAI", key="trophy", style="success", callback_data="points"),
+            button("MANO INVITE", key="invite", callback_data="my_link"),
+            button("MANO TAŠKAI", key="trophy", callback_data="points"),
         ],
         [
-            button("INVITE TOP", key="trophy", style="primary", callback_data="top"),
-            button("VISO TOP", key="stats", style="primary", callback_data="alltime"),
+            button("INVITE TOP", key="trophy", callback_data="top"),
+            button("VISO TOP", key="stats", callback_data="alltime"),
         ],
         [
             button("PRAEITA SAVAITĖ", key="crown", callback_data="lastweek"),
@@ -41,7 +39,7 @@ def user_menu(is_admin=False):
     ]
     if is_admin:
         rows.append([
-            button("ADMIN PANEL", key="crown", style="danger", callback_data="admin_panel")
+            button("ADMIN PANEL", key="crown", callback_data="admin_panel")
         ])
     return InlineKeyboardMarkup(rows)
 
@@ -49,19 +47,19 @@ def user_menu(is_admin=False):
 def admin_menu():
     return InlineKeyboardMarkup([
         [
-            button("ADS STATUS", key="share", style="primary", callback_data="admin_ads_status"),
-            button("ADS DABAR", key="share", style="success", callback_data="admin_ads_next"),
+            button("ADS STATUS", key="share", callback_data="admin_ads_status"),
+            button("ADS DABAR", key="share", callback_data="admin_ads_next"),
         ],
         [
-            button("ADS ON", key="add", style="success", callback_data="admin_ads_on"),
-            button("ADS OFF", key="crown", style="danger", callback_data="admin_ads_off"),
+            button("ADS ON", key="add", callback_data="admin_ads_on"),
+            button("ADS OFF", key="crown", callback_data="admin_ads_off"),
         ],
         [
-            button("REFRESH TOP", key="trophy", style="primary", callback_data="admin_live_refresh"),
-            button("STATISTIKA", key="stats", style="primary", callback_data="admin_stats"),
+            button("REFRESH TOP", key="trophy", callback_data="admin_live_refresh"),
+            button("STATISTIKA", key="stats", callback_data="admin_stats"),
         ],
         [
-            button("TAŠKŲ VALDYMAS", key="add", style="success", callback_data="admin_points_help"),
+            button("TAŠKŲ VALDYMAS", key="add", callback_data="admin_points_help"),
         ],
         [
             button("ADS PREVIEW", key="brand", callback_data="admin_adpack"),
@@ -76,7 +74,6 @@ def invite_markup(link):
         button(
             "DALINTIS SU DRAUGAIS / GRUPĖMIS",
             key="share",
-            style="success",
             url=rb.share_url(link),
         )
     ]]
@@ -85,7 +82,6 @@ def invite_markup(link):
             button(
                 "ATIDARYTI NĖRA DROPO",
                 key="brand",
-                style="primary",
                 url=rb.GROUP_PUBLIC_URL,
             )
         ])
@@ -100,7 +96,6 @@ def live_markup(application):
             button(
                 "DALYVAUTI / GAUTI INVITE",
                 key="invite",
-                style="success",
                 url=url,
             )
         ])
@@ -109,7 +104,6 @@ def live_markup(application):
             button(
                 "NĖRA DROPO",
                 key="brand",
-                style="primary",
                 url=rb.GROUP_PUBLIC_URL,
             )
         ])

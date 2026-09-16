@@ -49,7 +49,6 @@ Viso laiko invite TOP 10.
 Praėjusios savaitės invite TOP.
 
 Žinučių TOP pašalintas.
-Grupės adminai visuose TOP sąrašuose automatiškai praleidžiami.
 
 LIVE TOP
 /liveboard

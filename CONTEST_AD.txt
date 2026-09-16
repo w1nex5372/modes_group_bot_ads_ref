@@ -11,7 +11,6 @@ Rink taškus ir kilk į TOP 👀
 🏆 TOP atsinaujina automatiškai
 🔄 Reset: pirmadienį 00:00
 ⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą
-🛡 Adminai TOP'e nerodomi
 
 [🎯 DALYVAUTI](buttonurl://https://t.me/TAVO_BOTO_USERNAME?start=invite)
 [👑 NĖRA DROPO](buttonurl://https://t.me/NERADAUDROPO:same)

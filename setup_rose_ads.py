@@ -48,7 +48,6 @@ def contest_caption(username):
         "🏆 TOP atsinaujina automatiškai",
         "🔄 Reset: pirmadienį 00:00",
         "⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą",
-        "🛡 Adminai TOP'e nerodomi",
         "",
         f"[🎯 DALYVAUTI](buttonurl://{bot_url})",
         f"[👑 NĖRA DROPO](buttonurl://{GROUP_URL}:same)",

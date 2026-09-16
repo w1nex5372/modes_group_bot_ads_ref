@@ -1,7 +1,7 @@
 """NERA DROPO live bot layer.
 
 - Uses the NERA DROPO custom emoji pack in visible bot text.
-- Keeps inline keyboard labels on normal Unicode emoji (Telegram limitation).
+- live_ui.py supplies custom inline icons with default button colours.
 - Removes the message-count leaderboard from the live bot.
 - Adds admin point management and audit logging.
 """
@@ -12,7 +12,7 @@ from contextlib import closing
 
 import referral_bot as rb
 from telegram import BotCommand, BotCommandScopeChatAdministrators, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.constants import ParseMode
+from telegram.constants import ChatType, ParseMode
 from telegram.ext import Application, CallbackQueryHandler, ChatMemberHandler, CommandHandler
 
 
@@ -22,6 +22,19 @@ from telegram.ext import Application, CallbackQueryHandler, ChatMemberHandler, C
 
 def brand_line():
     return f"{rb.em('brand')} <b>NĖRA DROPO</b>"
+
+
+def home_text():
+    """Same welcome for /start and Back, independent of the connected test group."""
+    return (
+        f"{brand_line()}\n"
+        "Kviesk draugus, rink taškus ir kilk į TOP.\n\n"
+        f"{rb.em('invite')} Naujas narys per tavo nuorodą = <b>+1</b>\n"
+        f"{rb.em('add')} Pridedi naują narį per <b>Add Members</b> = <b>+1</b>\n\n"
+        f"{rb.em('trophy')} Abu būdai sumuojasi. Tas pats žmogus – 1 kartą.\n"
+        f"{rb.em('stats')} Nauja savaitė: pirmadienį 00:00.\n\n"
+        f"{rb.em('share')} Pradėk nuo <b>MANO INVITE</b>."
+    )
 
 
 def user_menu(is_admin=False):
@@ -78,7 +91,6 @@ def weekly_top_text(excluded=None):
     lines += [
         "",
         f"{rb.em('stats')} Reset: pirmadienį 00:00",
-        f"{rb.em('crown')} Adminai TOP'e nerodomi",
         brand_line(),
     ]
     return "\n".join(lines)
@@ -90,7 +102,7 @@ def alltime_top_text(excluded=None):
     lines += rb.ranking_lines(rows, "points", "tšk.") if rows else [
         f"{rb.em('brand')} Kol kas TOP tuščias"
     ]
-    lines += ["", f"{rb.em('crown')} Adminai TOP'e nerodomi", brand_line()]
+    lines += ["", brand_line()]
     return "\n".join(lines)
 
 
@@ -104,7 +116,7 @@ def lastweek_top_text(excluded=None):
         )
     lines = [f"{rb.em('trophy')} <b>PRAEITA SAVAITĖ · {rb.esc(week_key)}</b>", ""]
     lines += rb.ranking_lines(rows, "points", "tšk.")
-    lines += ["", f"{rb.em('crown')} Adminai TOP'e nerodomi", brand_line()]
+    lines += ["", brand_line()]
     return "\n".join(lines)
 
 
@@ -150,7 +162,6 @@ def contest_rose_caption(application):
         "🏆 TOP atsinaujina automatiškai",
         "🔄 Reset: pirmadienį 00:00",
         "⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą",
-        "🛡 Adminai TOP'e nerodomi",
         "",
         f"[🎯 DALYVAUTI](buttonurl://{b})",
         f"[👑 NĖRA DROPO](buttonurl://{g}:same)",
@@ -423,6 +434,24 @@ async def pointhelp_cmd(update, context):
 # Branded handlers
 # ---------------------------------------------------------------------------
 
+async def start_cmd(update, context):
+    """Keep the invite deep link and group behaviour; brand the private home."""
+    if not update.effective_user:
+        return
+    if (
+        update.effective_chat.type != ChatType.PRIVATE
+        or (context.args and context.args[0].lower() == "invite")
+    ):
+        return await rb.start_cmd(update, context)
+    rb.upsert_user(update.effective_user)
+    is_admin = await rb.is_admin_user(update.effective_user.id, context)
+    await update.effective_message.reply_text(
+        home_text(),
+        parse_mode=ParseMode.HTML,
+        reply_markup=user_menu(is_admin),
+    )
+
+
 async def points_cmd(update, context):
     rb.upsert_user(update.effective_user)
     row = rb.get_user(update.effective_user.id)
@@ -445,7 +474,7 @@ async def how_cmd(update, context):
         f"{rb.em('add')} Pats pridedi žmogų į grupę = <b>+1</b>\n"
         f"{rb.em('stats')} Abu būdai sumuojasi\n"
         f"{rb.em('trophy')} TOP reset: pirmadienį 00:00\n"
-        f"{rb.em('crown')} Adminai TOP'e nerodomi\n\n"
+        "\n"
         f"{brand_line()}"
     )
     await update.effective_message.reply_text(text, parse_mode=ParseMode.HTML)
@@ -581,7 +610,7 @@ async def on_button(update, context):
 
     if q.data == "back":
         await q.edit_message_text(
-            f"{rb.em('brand')} <b>NĖRA DROPO</b>\n\n{rb.em('crown')} Pasirink veiksmą",
+            home_text(),
             parse_mode=ParseMode.HTML,
             reply_markup=user_menu(is_admin),
         )
@@ -624,7 +653,7 @@ async def on_button(update, context):
             f"{rb.em('add')} Add Member → <b>+1</b>\n"
             f"{rb.em('stats')} Abu būdai sumuojasi\n"
             f"{rb.em('trophy')} Reset: pirmadienį 00:00\n"
-            f"{rb.em('crown')} Adminai TOP'e nerodomi\n\n"
+            "\n"
             f"{brand_line()}"
         )
         await q.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=user_menu(is_admin))
@@ -736,7 +765,7 @@ def main():
     )
 
     handlers = [
-        ("start", rb.start_cmd),
+        ("start", start_cmd),
         ("mylink", rb.mylink_cmd),
         ("points", points_cmd),
         ("top", rb.top_cmd),
