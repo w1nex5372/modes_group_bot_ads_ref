@@ -1,21 +1,46 @@
-🛠 ADMIN CHEAT-SHEET
+🛠 NĖRA DROPO ADMIN CHEAT-SHEET
 
 BENDRA
 /admin
-Atidaro admin panelę su mygtukais.
+Atidaro admin panelę.
 
 /stats
 Parodo sistemos statistiką.
 
 /adminnote
-Parodo šį admin komandų sąrašą bote.
+Parodo admin komandų sąrašą bote.
+
+TAŠKŲ VALDYMAS
+/addpoints @user 5
+Prideda 5 taškus prie savaitės ir bendro skaičiaus.
+
+/takepoints @user 2
+Atima 2 taškus nuo savaitės ir bendro skaičiaus.
+
+/setpoints @user 10 25
+Nustato: savaitė = 10, viso = 25.
+
+/resetpoints @user
+Nunulina vartotojo savaitės ir bendrus taškus.
+
+/userinfo @user
+Parodo vartotojo ID ir taškus.
+
+/pointhelp
+Parodo taškų valdymo pagalbą.
+
+Patogu grupėje: Reply į žmogaus žinutę ir rašyk, pvz. /addpoints 5 arba /takepoints 2.
+Visi rankiniai pakeitimai saugomi point_adjustments istorijoje.
 
 TOP SISTEMA
 /top
 Savaitės invite TOP 10.
 
-/msgtop
-Savaitės žinučių TOP 10.
+/leaderboard
+Tas pats kaip /top.
+
+/top10
+Tas pats kaip /top.
 
 /alltime
 Viso laiko invite TOP 10.
@@ -23,62 +48,54 @@ Viso laiko invite TOP 10.
 /lastweek
 Praėjusios savaitės invite TOP.
 
-Visuose TOP sąrašuose dabartiniai grupės adminai automatiškai praleidžiami.
+Žinučių TOP pašalintas.
+Grupės adminai visuose TOP sąrašuose automatiškai praleidžiami.
 
 LIVE TOP
 /liveboard
-Įjungia / atnaujina pagrindinį LIVE invite TOP.
+Atnaujina pagrindinį LIVE invite TOP.
 
 /liveboardnew
-Sukuria naują LIVE TOP postą. Naudok tik jei seno nebeliko.
+Sukuria naują LIVE TOP postą, jei seno nebeliko.
 
 /liveboardoff
 Sustabdo LIVE TOP automatinį atnaujinimą.
 
-/topad
-Įmeta papildomą dabartinio invite TOP postą.
-
 ROSE ADS
 /contestad
-Sugeneruoja savaitės konkurso Rose note tekstą su tikru boto linku.
+Sugeneruoja savaitės konkurso Rose note tekstą.
 
 /promoad
-Sugeneruoja bendrą grupės promo Rose note tekstą.
+Sugeneruoja trumpą sistemos paaiškinimo promo tekstą.
+
+/adpack
+Parodo ADS preview su image.
 
 /ads
-Parodo rotacijos būseną, intervalą, note eilę ir kas bus kitas.
+Parodo rotacijos būseną.
 
 /adsset konkursas promo
-Nustato Rose saved-note rotaciją.
+Nustato Rose note rotaciją.
+
+/adsfast 15
+Nustato konkursas/promo FAST intervalą.
 
 /adsinterval 30
-Keičia intervalą minutėmis. Galima 5–1440 min.
+Nustato kitų ADS intervalą.
 
 /adson
-Įjungia ADS rotaciją.
+Įjungia AUTO ADS.
 
 /adsoff
-Išjungia ADS rotaciją.
+Išjungia AUTO ADS.
 
 /adsnext
-Paleidžia kitą note netrukus.
-
-REKOMENDUOJAMAS STARTAS
-1. Bote: /contestad
-2. Gautą tekstą išsaugok Rose kaip note „konkursas“.
-3. Bote: /promoad
-4. Gautą tekstą išsaugok Rose kaip note „promo“.
-5. /adsset konkursas promo
-6. /adsinterval 30
-7. /adson
-8. /adsnext — testui iškart.
+Paleidžia kitą ADS dabar.
 
 VARTOTOJŲ KOMANDOS
 /mylink
 /points
 /top
-/msgtop
 /alltime
 /lastweek
-/help
 /how
