@@ -45,7 +45,7 @@ async def main():
             for key, filename, fallback, keywords in ITEMS:
                 path = ASSETS / filename
                 if not path.exists():
-                    raise SystemExit(f"Nerastas {path}. Padaryk git pull.")
+                    raise SystemExit(f"Nerastas {path}. Padaryk git pull / įkelk assets.")
                 stickers.append(
                     InputSticker(
                         sticker=path.read_bytes(),
@@ -71,8 +71,9 @@ async def main():
 
         OUTPUT.write_text(json.dumps(ids, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"✅ Custom emoji IDs išsaugoti: {OUTPUT}")
-        print("Perkrauk start.bat — botas pradės naudoti juos antraštėse ir tekste.")
-        print("Pastaba: Telegram inline mygtukai nepalaiko custom-emoji entity — juose lieka įprasti emoji.")
+        print("✅ Jie naudojami boto tekstuose ir inline mygtukų ikonose.")
+        print("Pastaba: custom emoji ant mygtukų veikia su Bot API 9.4+ ir kai boto savininkas turi Telegram Premium (arba botui tinka Fragment sąlyga).")
+        print("Perkrauk start.bat arba run_bot_only.bat.")
 
 
 if __name__ == "__main__":
