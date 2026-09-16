@@ -15,7 +15,7 @@ def start(name, script):
 
 def main():
     procs = [
-        ("Referral botas", "referral_bot.py"),
+        ("Referral botas", "branded_bot.py"),
         ("Auto forwarderis", "forwarder.py"),
     ]
 
