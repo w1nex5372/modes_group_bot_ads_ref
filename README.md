@@ -1,233 +1,114 @@
-# Telegram Group Referral + ADS System
+# modes_group_bot_ads_ref
 
-Vienas projektas apjungia:
+Telegram grupės sistema su referral konkursu, savaitiniais TOP, Rose ADS rotacija ir auto-forward.
 
-- referral / invite konkursą;
-- +1 už naują narį per asmeninę invite nuorodą;
-- +1 už tiesioginį `Add Member`, kai Telegram pateikia kas pridėjo;
-- savaitinį TOP 10;
-- automatinį savaitės resetą pirmadienį 00:00;
-- viso laiko TOP ir praėjusios savaitės istoriją;
-- vieną nuolat atnaujinamą LIVE TOP postą grupėje;
-- vartotojo meniu su mygtukais;
-- admin panelę su mygtukais;
-- Rose saved-note ADS rotaciją;
-- auto-forward į `chats.txt` grupes.
+## Kas veikia
 
-## 1. Saugumas
+- individuali invite nuoroda kiekvienam nariui;
+- +1 už naują narį per referral link;
+- +1 už tiesioginį Add Member, kai Telegram pateikia kas pridėjo;
+- savaitės invite TOP 10;
+- viso laiko invite TOP;
+- praėjusios savaitės TOP;
+- savaitės žinučių TOP 10;
+- dabartiniai grupės adminai visuose TOP sąrašuose automatiškai praleidžiami;
+- LIVE invite TOP grupėje;
+- savaitinis resetas pirmadienį 00:00;
+- vartotojo meniu ir admin panelė;
+- Rose saved-note rotacija su keičiamu intervalu;
+- atskiras auto-forward į `chats.txt` grupes.
 
-`.env`, Telegram session ir SQLite DB į GitHub nebekeliami.
-
-Jei šiame repo anksčiau buvo tikras `BOT_TOKEN`, jį reikia pakeisti per `@BotFather`, nes vien ištrynus `.env` tokenas lieka Git istorijoje.
-
-## 2. Paleidimas Windows
-
-```text
-start.bat
-```
-
-Minimaliai reikia:
-
-```env
-BOT_TOKEN=...
-GROUP=@tavo_grupe
-```
-
-User-account automatizacijai papildomai:
-
-```env
-API_ID=...
-API_HASH=...
-```
-
-Jei pradžiai nori tik referral boto:
-
-```text
-run_bot_only.bat
-```
-
-## 3. Botas grupėje
-
-Pridėk BotFather botą į grupę kaip administratorių.
-Jam reikia teisės siųsti žinutes ir valdyti / kurti invite links.
-
-## 4. Vartotojo pusė
-
-Privataus boto meniu:
-
-- 🔗 Mano invite
-- ⭐ Mano taškai
-- 🏆 Savaitės TOP
-- 📊 Viso TOP
-- 🥇 Praeita savaitė
-- 📋 Komandos
-- ℹ️ Kaip veikia
-
-Pilnas paaiškinimas automatiškai grupėje nerodomas. Jis atidaromas tik per `ℹ️ Kaip veikia` arba `/how`.
-
-Komandos:
+## Vartotojo komandos
 
 ```text
 /start
 /mylink
 /points
 /top
+/msgtop
 /alltime
 /lastweek
 /help
 /how
 ```
 
-## 5. Referral logika
-
-Naujas narys per asmeninę invite nuorodą:
+## Admin komandos
 
 ```text
-+1 savaitės taškas
-+1 viso laiko taškas
-```
-
-Tas pats naujas narys toje pačioje grupėje antrą kartą nebeskaičiuojamas.
-
-Tiesioginis `Add Member` taip pat bandomas užskaityti tam nariui, kurį Telegram nurodo kaip atlikusį pridėjimą.
-
-Invite nuorodos saugomos pagal `group_id`, todėl perjungus testinę grupę į pagrindinę senas testinės grupės linkas nebenaudojamas.
-
-## 6. LIVE TOP 10
-
-Grupėje laikomas vienas pagrindinis LIVE TOP postas. Po +1 jis atnaujinamas iškart ir papildomai persitikrina periodiškai.
-
-Startup dubliavimas sutvarkytas: pradžioje atnaujinamas vienas postas, o periodinis loopas nepradeda antro atnaujinimo tuo pačiu metu.
-
-Admin komandos:
-
-```text
+/admin
+/stats
 /liveboard
 /liveboardnew
 /liveboardoff
 /topad
-```
-
-## 7. Admin panelė
-
-Adminas privačiame bote rašo:
-
-```text
-/admin
-```
-
-ir gauna panelę su mygtukais:
-
-- ADS status;
-- ADS ON / OFF;
-- kitas ADS;
-- atnaujinti TOP;
-- statistika;
-- konkursas ADS;
-- admin komandų sąrašas.
-
-Visas cheat-sheet:
-
-```text
+/ads
+/adsset konkursas promo
+/adsinterval 30
+/adson
+/adsoff
+/adsnext
+/contestad
+/promoad
 /adminnote
 ```
 
-## 8. Konkursas ADS tekstas
+## Savaitės žinučių TOP
 
-Paruoštas failas:
+Botas skaičiuoja paprastų grupės narių savaitės žinutes ir rodo:
 
 ```text
-CONTEST_AD.txt
+/msgtop
 ```
 
-Dar patogiau: adminas rašo:
+Komandos pačios į žinučių skaičių nepatenka. Dabartiniai grupės adminai TOP lentelėje nerodomi.
+
+## TOP adminų skip
+
+Kiekvieną kartą generuojant TOP botas pasiima esamų grupės administratorių sąrašą ir juos praleidžia:
+
+- LIVE invite TOP;
+- `/top`;
+- `/alltime`;
+- `/lastweek`;
+- `/msgtop`;
+- savaitės pabaigos TOP 3.
+
+## Rose ADS savaitės startas
+
+Pirma susikurk 2 Rose notes:
 
 ```text
-/contestad
-```
-
-ir botas sugeneruoja Rose note tekstą su tikru boto ir grupės linku.
-
-## 9. Rose ADS rotacija
-
-Pvz. Rose turi saved notes:
-
-```text
-ads
 konkursas
 promo
 ```
 
-Adminas:
+Paruoštus tekstus sugeneruoja pats botas:
 
 ```text
-/adsset ads konkursas promo
-/adsinterval 10
+/contestad
+/promoad
+```
+
+Tada:
+
+```text
+/adsset konkursas promo
+/adsinterval 30
 /adson
-```
-
-Statusas:
-
-```text
-/ads
-```
-
-Kitas iškart:
-
-```text
 /adsnext
 ```
 
-Stop:
+Plačiau žr. `WEEKLY_ADS_SETUP.txt`.
 
-```text
-/adsoff
-```
+## Saugumas
 
-## 10. Auto-forward į kitas grupes
-
-Lokaliame `chats.txt` po vieną grupę eilutėje:
-
-```text
-@grupe1
-@grupe2
-https://t.me/grupe3
-```
-
-Repo turi tik `chats.example.txt`; tikras `chats.txt` ignoruojamas Git.
-
-`SOURCE_MESSAGE_ID=0` reiškia, kad auto-forward išjungtas.
-
-## 11. Savaitinis resetas
-
-Pagal nutylėjimą:
-
-```env
-WEEK_TIMEZONE=Europe/Vilnius
-WEEK_RESET_ANNOUNCE=true
-```
-
-Pirmadienį 00:00:
-
-- išsaugomas praėjusios savaitės leaderboardas;
-- savaitės taškai nunulinami;
-- viso laiko taškai lieka;
-- LIVE TOP persikrauna;
-- jei įjungta, grupėje paskelbiamas praėjusios savaitės TOP 3.
-
-## 12. Update workflow
-
-Kai repo atsiranda naujas commit:
-
-```powershell
-git pull
-```
-
-Lokalūs failai lieka lokalūs:
+Nekelk į GitHub:
 
 ```text
 .env
-chats.txt
-referrals.sqlite3
 *.session
+referrals.sqlite3
+chats.txt
 ```
+
+Tam yra `.gitignore`.
