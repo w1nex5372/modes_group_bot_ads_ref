@@ -1,0 +1,23 @@
+# Secrets / Telegram sessions
+.env
+*.session
+*.session-journal
+
+# Runtime data
+referrals.sqlite3
+referrals.sqlite3-*
+*.sqlite3-wal
+*.sqlite3-shm
+chats.txt
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

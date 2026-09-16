@@ -9,7 +9,13 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    BotCommand,
+    BotCommandScopeChatAdministrators,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
 from telegram.constants import ChatMemberStatus
 from telegram.ext import (
     Application,
@@ -22,27 +28,35 @@ from telegram.ext import (
 load_dotenv()
 
 BOT_TOKEN = os.environ["BOT_TOKEN"].strip()
-GROUP_CHAT_RAW = os.getenv("GROUP", os.getenv("GROUP_CHAT", "@NERADAUDROPO")).strip()
+GROUP_CHAT_RAW = os.getenv(
+    "GROUP",
+    os.getenv("GROUP_CHAT", "@NERADAUDROPO"),
+).strip()
+
 GROUP_PUBLIC_URL = os.getenv("GROUP_PUBLIC_URL", "").strip()
 if not GROUP_PUBLIC_URL and GROUP_CHAT_RAW.startswith("@"):
     GROUP_PUBLIC_URL = "https://t.me/" + GROUP_CHAT_RAW[1:]
-DB_PATH = os.getenv("DB_PATH", "referrals.sqlite3").strip()
 
-# Savaitė resetinama pagal šią laiko zoną.
+DB_PATH = os.getenv("DB_PATH", "referrals.sqlite3").strip()
 WEEK_TIMEZONE = os.getenv("WEEK_TIMEZONE", "Europe/Vilnius").strip()
 WEEK_RESET_ANNOUNCE = os.getenv("WEEK_RESET_ANNOUNCE", "true").lower() in {
-    "1", "true", "yes", "on"
+    "1",
+    "true",
+    "yes",
+    "on",
 }
-
-LIVE_LEADERBOARD_ENABLED = os.getenv("LIVE_LEADERBOARD_ENABLED", "true").lower() in {
-    "1", "true", "yes", "on"
-}
-LIVE_LEADERBOARD_REFRESH_SECONDS = max(15, int(os.getenv("LIVE_LEADERBOARD_REFRESH_SECONDS", "60")))
-
+LIVE_LEADERBOARD_ENABLED = os.getenv(
+    "LIVE_LEADERBOARD_ENABLED",
+    "true",
+).lower() in {"1", "true", "yes", "on"}
+LIVE_LEADERBOARD_REFRESH_SECONDS = max(
+    15,
+    int(os.getenv("LIVE_LEADERBOARD_REFRESH_SECONDS", "60")),
+)
 ADMIN_IDS = {
-    int(x.strip())
-    for x in os.getenv("ADMIN_IDS", "").split(",")
-    if x.strip().isdigit()
+    int(item.strip())
+    for item in os.getenv("ADMIN_IDS", "").split(",")
+    if item.strip().isdigit()
 }
 
 logging.basicConfig(
@@ -51,6 +65,10 @@ logging.basicConfig(
 )
 log = logging.getLogger("referral_bot")
 
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
 
 def db():
     conn = sqlite3.connect(DB_PATH, timeout=30)
@@ -85,6 +103,17 @@ def init_db():
                 created_at TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS invite_links (
+                group_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                invite_link TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (group_id, user_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_invite_links_link
+            ON invite_links(invite_link);
+
             CREATE TABLE IF NOT EXISTS referrals (
                 group_id INTEGER NOT NULL,
                 joined_user_id INTEGER NOT NULL,
@@ -115,7 +144,6 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_weekly_history_week_points
             ON weekly_history(week_key, points DESC);
 
-
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -123,14 +151,14 @@ def init_db():
             """
         )
 
-        # Migracija iš pirmos versijos: jei weekly_points dar nėra.
         cols = {
             row["name"]
             for row in conn.execute("PRAGMA table_info(users)").fetchall()
         }
         if "weekly_points" not in cols:
             conn.execute(
-                "ALTER TABLE users ADD COLUMN weekly_points INTEGER NOT NULL DEFAULT 0"
+                "ALTER TABLE users "
+                "ADD COLUMN weekly_points INTEGER NOT NULL DEFAULT 0"
             )
 
         defaults = {
@@ -140,7 +168,6 @@ def init_db():
             "ads_next_index": "0",
             "ads_last_sent_ts": "0",
             "ads_force_send": "0",
-            "live_leaderboard_message_id": "",
             "live_leaderboard_enabled": "1",
         }
         for key, value in defaults.items():
@@ -154,19 +181,33 @@ def init_db():
     ensure_current_week()
 
 
-def ensure_current_week():
-    """
-    Grąžina:
-      (reset_happened, previous_week_key, previous_top_rows)
+def get_setting(key: str, default=None):
+    with closing(db()) as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key=?",
+            (key,),
+        ).fetchone()
+        return row["value"] if row else default
 
-    Jei savaitė pasikeitė, išsaugo senos savaitės rezultatą,
-    nunulina weekly_points ir pradeda naują savaitę.
-    """
+
+def set_setting(key: str, value):
+    with closing(db()) as conn:
+        conn.execute(
+            """
+            INSERT INTO settings(key, value)
+            VALUES(?, ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
+            (key, str(value)),
+        )
+        conn.commit()
+
+
+def ensure_current_week():
     week_key = current_week_key()
 
     with closing(db()) as conn:
         conn.execute("BEGIN IMMEDIATE")
-
         row = conn.execute(
             "SELECT value FROM meta WHERE key='current_week'"
         ).fetchone()
@@ -180,7 +221,6 @@ def ensure_current_week():
             return False, None, []
 
         old_week = row["value"]
-
         if old_week == week_key:
             conn.commit()
             return False, None, []
@@ -246,20 +286,43 @@ def get_user(user_id: int):
         ).fetchone()
 
 
-def save_invite_link(user_id: int, link: str):
+def get_personal_link(group_id: int, user_id: int):
+    with closing(db()) as conn:
+        row = conn.execute(
+            """
+            SELECT invite_link
+            FROM invite_links
+            WHERE group_id=? AND user_id=?
+            """,
+            (group_id, user_id),
+        ).fetchone()
+        return row["invite_link"] if row else None
+
+
+def save_personal_link(group_id: int, user_id: int, link: str):
     with closing(db()) as conn:
         conn.execute(
-            "UPDATE users SET invite_link=? WHERE user_id=?",
-            (link, user_id),
+            """
+            INSERT INTO invite_links(group_id, user_id, invite_link, created_at)
+            VALUES(?, ?, ?, ?)
+            ON CONFLICT(group_id, user_id) DO UPDATE SET
+                invite_link=excluded.invite_link,
+                created_at=excluded.created_at
+            """,
+            (group_id, user_id, link, now_iso()),
         )
         conn.commit()
 
 
-def owner_by_link(link: str):
+def owner_by_link(group_id: int, link: str):
     with closing(db()) as conn:
         row = conn.execute(
-            "SELECT user_id FROM users WHERE invite_link=?",
-            (link,),
+            """
+            SELECT user_id
+            FROM invite_links
+            WHERE group_id=? AND invite_link=?
+            """,
+            (group_id, link),
         ).fetchone()
         return row["user_id"] if row else None
 
@@ -296,9 +359,12 @@ def award_once(group_id: int, joined_user_id: int, inviter_user_id: int, source:
             conn.commit()
             return True
         except sqlite3.IntegrityError:
-            # Tas pats žmogus šioje grupėje jau buvo užskaitytas anksčiau.
             return False
 
+
+# ---------------------------------------------------------------------------
+# Leaderboards
+# ---------------------------------------------------------------------------
 
 def weekly_top(limit=10):
     ensure_current_week()
@@ -340,11 +406,10 @@ def last_week_top(limit=10):
             LIMIT 1
             """
         ).fetchone()
-
         if not row:
             return None, []
 
-        wk = row["week_key"]
+        week_key = row["week_key"]
         rows = conn.execute(
             """
             SELECT user_id, username, first_name, points
@@ -353,9 +418,9 @@ def last_week_top(limit=10):
             ORDER BY points DESC, user_id ASC
             LIMIT ?
             """,
-            (wk, limit),
+            (week_key, limit),
         ).fetchall()
-        return wk, rows
+        return week_key, rows
 
 
 def display_name(row):
@@ -366,129 +431,121 @@ def display_name(row):
     return f"ID {row['user_id']}"
 
 
+def weekly_top_text():
+    rows = weekly_top()
+    lines = [f"🏆 SAVAITĖS TOP — {current_week_key()}"]
+    if not rows:
+        lines.extend(["", "Kol kas taškų nėra."])
+    else:
+        lines.append("")
+        medals = ["🥇", "🥈", "🥉"]
+        for index, row in enumerate(rows, 1):
+            prefix = medals[index - 1] if index <= 3 else f"{index}."
+            lines.append(f"{prefix} {display_name(row)} — {row['weekly_points']} tšk.")
+    lines.extend(["", "🔄 Reset: pirmadienį 00:00"])
+    return "\n".join(lines)
+
+
+def alltime_top_text():
+    rows = alltime_top()
+    lines = ["📊 VISO LAIKO TOP"]
+    if not rows:
+        lines.extend(["", "Kol kas taškų nėra."])
+    else:
+        lines.append("")
+        for index, row in enumerate(rows, 1):
+            lines.append(f"{index}. {display_name(row)} — {row['points']} tšk.")
+    return "\n".join(lines)
+
+
+def last_week_top_text():
+    week_key, rows = last_week_top()
+    if not rows:
+        return "🥇 Praėjusios savaitės rezultatų dar nėra."
+
+    lines = [f"🥇 PRAĖJUSI SAVAITĖ — {week_key}", ""]
+    for index, row in enumerate(rows, 1):
+        lines.append(f"{index}. {display_name(row)} — {row['points']} tšk.")
+    return "\n".join(lines)
+
 
 def live_leaderboard_text():
     rows = weekly_top(10)
-    now = local_now()
-    lines = [
-        "🏆 SAVAITĖS INVITE TOP 10 — LIVE",
-        "",
-        "👤 Kiekvienas naujas narys per tavo asmeninę invite nuorodą = +1 taškas.",
-        "",
-    ]
+    lines = ["🏆 SAVAITĖS INVITE TOP 10 — LIVE", ""]
     if not rows:
-        lines.append("Kol kas niekas taškų nesurinko. Būk pirmas 👀")
+        lines.append("Kol kas TOP tuščias. Būk pirmas 👀")
     else:
         medals = ["🥇", "🥈", "🥉"]
-        for i, row in enumerate(rows, 1):
-            prefix = medals[i - 1] if i <= 3 else f"{i}."
+        for index, row in enumerate(rows, 1):
+            prefix = medals[index - 1] if index <= 3 else f"{index}."
             lines.append(f"{prefix} {display_name(row)} — {row['weekly_points']} tšk.")
-    lines.extend([
-        "",
-        "🔄 Reset: pirmadienį 00:00",
-        "🎯 Spausk „DALYVAUTI“ ir gauk savo invite nuorodą.",
-        "",
-        f"🟢 Atnaujinta: {now:%H:%M}",
-    ])
+    lines.extend(["", "🔄 Reset: pirmadienį 00:00", f"🟢 Atnaujinta: {local_now():%H:%M}"])
     return "\n".join(lines)
+
+
+def group_button_text(application: Application):
+    title = str(application.bot_data.get("group_title", "GRUPĖ")).strip() or "GRUPĖ"
+    if len(title) > 28:
+        title = title[:27] + "…"
+    return f"👥 {title}"
 
 
 def live_leaderboard_markup(application: Application):
     username = application.bot_data.get("bot_username")
     buttons = []
     if username:
-        buttons.append([InlineKeyboardButton("🎯 DALYVAUTI / GAUTI INVITE", url=f"https://t.me/{username}")])
+        buttons.append([InlineKeyboardButton("🎯 DALYVAUTI / GAUTI INVITE", url=f"https://t.me/{username}?start=invite")])
     if GROUP_PUBLIC_URL:
-        buttons.append([InlineKeyboardButton("🇺🇸 NĖRA DROPO", url=GROUP_PUBLIC_URL)])
+        buttons.append([InlineKeyboardButton(group_button_text(application), url=GROUP_PUBLIC_URL)])
     return InlineKeyboardMarkup(buttons) if buttons else None
 
 
 async def refresh_live_leaderboard(application: Application, force_new: bool = False):
-    if not LIVE_LEADERBOARD_ENABLED:
+    if get_setting("live_leaderboard_enabled", "1" if LIVE_LEADERBOARD_ENABLED else "0") != "1":
         return None
+
     group_id = application.bot_data.get("group_id")
     if not group_id:
         return None
-    text = live_leaderboard_text()
-    markup = live_leaderboard_markup(application)
-    raw = get_setting("live_leaderboard_message_id", "")
-    try:
-        message_id = int(raw) if raw else None
-    except ValueError:
-        message_id = None
 
-    if message_id and not force_new:
+    lock = application.bot_data.setdefault("_leaderboard_lock", asyncio.Lock())
+    async with lock:
+        key = f"live_leaderboard_message_id:{group_id}"
+        raw = get_setting(key, "")
         try:
-            await application.bot.edit_message_text(chat_id=group_id, message_id=message_id, text=text, reply_markup=markup)
-            return message_id
-        except Exception as e:
-            if "not modified" in str(e).lower():
-                return message_id
-            log.warning("LIVE TOP edit nepavyko, kuriamas naujas postas: %s", e)
+            message_id = int(raw) if raw else None
+        except ValueError:
+            message_id = None
 
-    msg = await application.bot.send_message(chat_id=group_id, text=text, reply_markup=markup)
-    set_setting("live_leaderboard_message_id", str(msg.message_id))
-    return msg.message_id
+        text = live_leaderboard_text()
+        markup = live_leaderboard_markup(application)
+
+        if message_id and not force_new:
+            try:
+                await application.bot.edit_message_text(chat_id=group_id, message_id=message_id, text=text, reply_markup=markup)
+                return message_id
+            except Exception as exc:
+                if "not modified" in str(exc).lower():
+                    return message_id
+                log.warning("LIVE TOP edit nepavyko; kuriamas naujas: %s", exc)
+
+        message = await application.bot.send_message(chat_id=group_id, text=text, reply_markup=markup)
+        set_setting(key, str(message.message_id))
+        return message.message_id
 
 
 async def live_leaderboard_loop(application: Application):
     while True:
+        await asyncio.sleep(LIVE_LEADERBOARD_REFRESH_SECONDS)
         try:
-            if get_setting("live_leaderboard_enabled", "1") == "1":
-                await refresh_live_leaderboard(application)
+            await refresh_live_leaderboard(application)
         except Exception:
             log.exception("LIVE TOP 10 atnaujinimo klaida")
-        await asyncio.sleep(LIVE_LEADERBOARD_REFRESH_SECONDS)
 
 
-async def liveboard_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
-        return
-    set_setting("live_leaderboard_enabled", "1")
-    mid = await refresh_live_leaderboard(context.application)
-    await update.effective_message.reply_text(f"✅ LIVE TOP 10 įjungtas. Message ID: {mid}")
-
-
-async def liveboardnew_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
-        return
-    set_setting("live_leaderboard_enabled", "1")
-    mid = await refresh_live_leaderboard(context.application, force_new=True)
-    await update.effective_message.reply_text(f"✅ Sukurtas naujas LIVE TOP 10 postas. ID: {mid}")
-
-
-async def liveboardoff_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
-        return
-    set_setting("live_leaderboard_enabled", "0")
-    await update.effective_message.reply_text("🔴 LIVE TOP 10 automatinis atnaujinimas išjungtas.")
-
-
-async def topad_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
-        return
-    group_id = await ensure_group(context)
-    msg = await context.bot.send_message(chat_id=group_id, text=live_leaderboard_text(), reply_markup=live_leaderboard_markup(context.application))
-    await update.effective_message.reply_text(f"✅ TOP 10 reklaminis postas įkeltas į grupę. ID: {msg.message_id}")
-
-def menu():
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("🔗 Mano invite", callback_data="my_link"),
-                InlineKeyboardButton("⭐ Mano taškai", callback_data="points"),
-            ],
-            [
-                InlineKeyboardButton("🏆 Savaitės TOP", callback_data="top"),
-                InlineKeyboardButton("📊 Viso TOP", callback_data="alltime"),
-            ],
-            [
-                InlineKeyboardButton("🥇 Praeita savaitė", callback_data="lastweek"),
-                InlineKeyboardButton("ℹ️ Kaip veikia", callback_data="info"),
-            ],
-        ]
-    )
-
+# ---------------------------------------------------------------------------
+# Menus and permissions
+# ---------------------------------------------------------------------------
 
 async def ensure_group(context: ContextTypes.DEFAULT_TYPE):
     if "group_id" not in context.application.bot_data:
@@ -498,220 +555,93 @@ async def ensure_group(context: ContextTypes.DEFAULT_TYPE):
     return context.application.bot_data["group_id"]
 
 
-async def ensure_personal_link(context: ContextTypes.DEFAULT_TYPE, user):
-    upsert_user(user)
-    row = get_user(user.id)
-
-    if row and row["invite_link"]:
-        return row["invite_link"]
-
-    group_id = await ensure_group(context)
-
-    link_obj = await context.bot.create_chat_invite_link(
-        chat_id=group_id,
-        name=f"ref_{user.id}"[:32],
-    )
-
-    save_invite_link(user.id, link_obj.invite_link)
-    return link_obj.invite_link
-
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    upsert_user(update.effective_user)
-    await ensure_group(context)
-    title = context.application.bot_data.get("group_title", "grupė")
-
-    text = (
-        f"👋 {title} savaitinis invite konkursas.\n\n"
-        "🔗 Gauk savo asmeninę invite nuorodą.\n"
-        "👤 Kiekvienas naujas žmogus = +1 taškas.\n"
-        "🏆 Savaitės leaderboard resetinamas kiekvieną pirmadienį 00:00.\n\n"
-        "Tas pats žmogus pakartotinai taško nebeduoda."
-    )
-
-    await update.effective_message.reply_text(text, reply_markup=menu())
-
-
-async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-
-    user = q.from_user
-    upsert_user(user)
-
-    if q.data == "my_link":
-        try:
-            link = await ensure_personal_link(context, user)
-            text = (
-                "🔗 Tavo asmeninė invite nuoroda:\n\n"
-                f"{link}\n\n"
-                "Kiekvienas naujas žmogus, pirmą kartą prisijungęs per ją, = +1 savaitės taškas."
-            )
-        except Exception:
-            log.exception("Nepavyko sukurti invite link")
-            text = (
-                "Nepavyko sukurti invite nuorodos.\n\n"
-                "Patikrink, ar botas yra grupės administratorius ir turi teisę kviesti vartotojus."
-            )
-
-        await q.edit_message_text(text, reply_markup=menu())
-        return
-
-    if q.data == "points":
-        row = get_user(user.id)
-        weekly = int(row["weekly_points"]) if row else 0
-        total = int(row["points"]) if row else 0
-
-        await q.edit_message_text(
-            f"⭐ Šią savaitę: {weekly} tšk.\n📊 Iš viso: {total} tšk.",
-            reply_markup=menu(),
-        )
-        return
-
-    if q.data == "top":
-        rows = weekly_top()
-        lines = [f"🏆 SAVAITĖS TOP — {current_week_key()}"]
-
-        if not rows:
-            lines.append("\nKol kas taškų nėra.")
-        else:
-            for i, row in enumerate(rows, 1):
-                lines.append(
-                    f"{i}. {display_name(row)} — {row['weekly_points']} tšk."
-                )
-
-        lines.append("\n🔄 Reset: pirmadienį 00:00")
-        await q.edit_message_text("\n".join(lines), reply_markup=menu())
-        return
-
-    if q.data == "alltime":
-        rows = alltime_top()
-        lines = ["📊 VISO LAIKO TOP"]
-
-        if not rows:
-            lines.append("\nKol kas taškų nėra.")
-        else:
-            for i, row in enumerate(rows, 1):
-                lines.append(f"{i}. {display_name(row)} — {row['points']} tšk.")
-
-        await q.edit_message_text("\n".join(lines), reply_markup=menu())
-        return
-
-    if q.data == "lastweek":
-        wk, rows = last_week_top()
-        if not rows:
-            text = "🥇 Praėjusios savaitės rezultatų dar nėra."
-        else:
-            lines = [f"🥇 PRAĖJUSI SAVAITĖ — {wk}"]
-            for i, row in enumerate(rows, 1):
-                lines.append(f"{i}. {display_name(row)} — {row['points']} tšk.")
-            text = "\n".join(lines)
-
-        await q.edit_message_text(text, reply_markup=menu())
-        return
-
-    if q.data == "info":
-        text = (
-            "ℹ️ Kaip veikia:\n\n"
-            "1. Spausk „Mano invite“.\n"
-            "2. Dalinkis savo unikalia grupės nuoroda.\n"
-            "3. Naujas žmogus prisijungia — +1 taškas.\n"
-            "4. Savaitės TOP resetinamas pirmadienį 00:00.\n"
-            "5. Bendras viso laiko taškų skaičius nedingsta.\n\n"
-            "Jei žmogų į grupę tiesiogiai prideda kitas narys, sistema taip pat bando užskaityti +1 pridėjusiam nariui."
-        )
-        await q.edit_message_text(text, reply_markup=menu())
-
-
-async def mylink_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def is_admin_user(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    if user_id in ADMIN_IDS:
+        return True
     try:
-        link = await ensure_personal_link(context, update.effective_user)
-        await update.effective_message.reply_text(
-            f"🔗 Tavo invite nuoroda:\n{link}"
-        )
+        group_id = await ensure_group(context)
+        member = await context.bot.get_chat_member(group_id, user_id)
+        return member.status in {ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER}
     except Exception:
-        log.exception("Invite link klaida")
-        await update.effective_message.reply_text(
-            "Nepavyko sukurti nuorodos. Botui reikia admin teisių ir teisės kviesti vartotojus."
-        )
+        return False
 
 
-async def points_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    upsert_user(update.effective_user)
-    row = get_user(update.effective_user.id)
+async def require_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    user = update.effective_user
+    if not user:
+        return False
+    ok = await is_admin_user(user.id, context)
+    if not ok and update.effective_message:
+        await update.effective_message.reply_text("⛔ Ši komanda skirta grupės administratoriui.")
+    return ok
 
-    weekly = int(row["weekly_points"]) if row else 0
-    total = int(row["points"]) if row else 0
 
-    await update.effective_message.reply_text(
-        f"⭐ Šią savaitę: {weekly} tšk.\n📊 Iš viso: {total} tšk."
+def user_menu(is_admin=False):
+    rows = [
+        [InlineKeyboardButton("🔗 Mano invite", callback_data="my_link"), InlineKeyboardButton("⭐ Mano taškai", callback_data="points")],
+        [InlineKeyboardButton("🏆 Savaitės TOP", callback_data="top"), InlineKeyboardButton("📊 Viso TOP", callback_data="alltime")],
+        [InlineKeyboardButton("🥇 Praeita savaitė", callback_data="lastweek"), InlineKeyboardButton("📋 Komandos", callback_data="commands")],
+        [InlineKeyboardButton("ℹ️ Kaip veikia", callback_data="info")],
+    ]
+    if is_admin:
+        rows.append([InlineKeyboardButton("🛠 ADMIN PANEL", callback_data="admin_panel")])
+    return InlineKeyboardMarkup(rows)
+
+
+def admin_panel_markup():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📢 ADS status", callback_data="admin_ads_status"), InlineKeyboardButton("⏭ Kitas ADS", callback_data="admin_ads_next")],
+        [InlineKeyboardButton("🟢 ADS ON", callback_data="admin_ads_on"), InlineKeyboardButton("🔴 ADS OFF", callback_data="admin_ads_off")],
+        [InlineKeyboardButton("🏆 Atnaujinti TOP", callback_data="admin_live_refresh"), InlineKeyboardButton("📊 Statistika", callback_data="admin_stats")],
+        [InlineKeyboardButton("📄 Konkursas ADS", callback_data="admin_contest_ad"), InlineKeyboardButton("📋 Admin komandos", callback_data="admin_commands")],
+        [InlineKeyboardButton("⬅️ Atgal", callback_data="back")],
+    ])
+
+
+def user_commands_text():
+    return (
+        "📋 VARTOTOJO KOMANDOS\n\n"
+        "/mylink — tavo asmeninė invite nuoroda\n"
+        "/points — tavo savaitės ir bendri taškai\n"
+        "/top — šios savaitės TOP 10\n"
+        "/alltime — viso laiko TOP 10\n"
+        "/lastweek — praėjusios savaitės TOP\n"
+        "/help — šis komandų sąrašas\n"
+        "/how — kaip veikia konkursas"
     )
 
 
-async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rows = weekly_top()
-    lines = [f"🏆 SAVAITĖS TOP — {current_week_key()}"]
-
-    if not rows:
-        lines.append("Kol kas tuščia.")
-    else:
-        for i, row in enumerate(rows, 1):
-            lines.append(
-                f"{i}. {display_name(row)} — {row['weekly_points']} tšk."
-            )
-
-    lines.append("\n🔄 Reset: pirmadienį 00:00")
-    await update.effective_message.reply_text("\n".join(lines))
+def how_it_works_text():
+    return (
+        "ℹ️ KAIP VEIKIA INVITE KONKURSAS\n\n"
+        "1. Bote pasiimi savo asmeninę invite nuorodą.\n"
+        "2. Daliniesi ja su draugais.\n"
+        "3. Naujas žmogus prisijungia — gauni +1 tašką.\n"
+        "4. Tiesioginis Add Member taip pat gali duoti +1 tam, kas žmogų pridėjo.\n"
+        "5. Tas pats žmogus toje pačioje grupėje užskaitomas tik kartą.\n"
+        "6. Savaitės TOP resetinamas pirmadienį 00:00.\n"
+        "7. Viso laiko taškai nedingsta."
+    )
 
 
-async def alltime_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    rows = alltime_top()
-    lines = ["📊 VISO LAIKO TOP"]
-
-    if not rows:
-        lines.append("Kol kas tuščia.")
-    else:
-        for i, row in enumerate(rows, 1):
-            lines.append(f"{i}. {display_name(row)} — {row['points']} tšk.")
-
-    await update.effective_message.reply_text("\n".join(lines))
+def admin_commands_text():
+    return (
+        "🛠 ADMIN KOMANDOS\n\n"
+        "BENDRA:\n/admin — atidaryti admin panelę\n/stats — sistemos statistika\n\n"
+        "LIVE TOP:\n/liveboard — įjungti / atnaujinti LIVE TOP\n/liveboardnew — sukurti naują LIVE TOP postą\n/liveboardoff — išjungti LIVE TOP auto update\n/topad — papildomas TOP postas\n\n"
+        "ROSE ADS:\n/ads — ADS statusas\n/adsset ads konkursas promo — note eilė\n/adsinterval 10 — intervalas minutėmis\n/adson — įjungti\n/adsoff — išjungti\n/adsnext — kitas ADS dabar\n\n"
+        "PARUOŠTI TEKSTAI:\n/contestad — konkursas Rose note tekstas\n/adminnote — šis admin cheat-sheet"
+    )
 
 
-async def lastweek_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    wk, rows = last_week_top()
-
-    if not rows:
-        await update.effective_message.reply_text(
-            "Praėjusios savaitės rezultatų dar nėra."
-        )
-        return
-
-    lines = [f"🥇 PRAĖJUSI SAVAITĖ — {wk}"]
-    for i, row in enumerate(rows, 1):
-        lines.append(f"{i}. {display_name(row)} — {row['points']} tšk.")
-
-    await update.effective_message.reply_text("\n".join(lines))
-
-
-async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
-        return
-
+def stats_text():
     ensure_current_week()
-
     with closing(db()) as conn:
-        total_users = conn.execute(
-            "SELECT COUNT(*) c FROM users"
-        ).fetchone()["c"]
-        total_refs = conn.execute(
-            "SELECT COUNT(*) c FROM referrals"
-        ).fetchone()["c"]
-        week_refs = conn.execute(
-            "SELECT COALESCE(SUM(weekly_points), 0) c FROM users"
-        ).fetchone()["c"]
-
-    await update.effective_message.reply_text(
-        f"📊 Sistema\n"
+        total_users = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+        total_refs = conn.execute("SELECT COUNT(*) AS c FROM referrals").fetchone()["c"]
+        week_refs = conn.execute("SELECT COALESCE(SUM(weekly_points), 0) AS c FROM users").fetchone()["c"]
+    return (
+        "📊 SISTEMOS STATISTIKA\n\n"
         f"Vartotojų DB: {total_users}\n"
         f"Visų laikų invite/add: {total_refs}\n"
         f"Šios savaitės taškai: {week_refs}\n"
@@ -719,28 +649,245 @@ async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# ---------------------------------------------------------------------------
+# Invite links and prepared ad text
+# ---------------------------------------------------------------------------
 
-def get_setting(key: str, default=None):
-    with closing(db()) as conn:
-        row = conn.execute(
-            "SELECT value FROM settings WHERE key=?",
-            (key,),
-        ).fetchone()
-        return row["value"] if row else default
+async def ensure_personal_link(context: ContextTypes.DEFAULT_TYPE, user):
+    upsert_user(user)
+    group_id = await ensure_group(context)
+    existing = get_personal_link(group_id, user.id)
+    if existing:
+        return existing
+
+    link_obj = await context.bot.create_chat_invite_link(chat_id=group_id, name=f"ref_{user.id}"[:32])
+    save_personal_link(group_id, user.id, link_obj.invite_link)
+    return link_obj.invite_link
 
 
-def set_setting(key: str, value):
-    with closing(db()) as conn:
-        conn.execute(
-            """
-            INSERT INTO settings(key, value)
-            VALUES(?, ?)
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """,
-            (key, str(value)),
-        )
-        conn.commit()
+def bot_private_url(application: Application, start_param=None):
+    username = application.bot_data.get("bot_username")
+    if not username:
+        return None
+    base = f"https://t.me/{username}"
+    return f"{base}?start={start_param}" if start_param else base
 
+
+def contest_ad_text(application: Application):
+    bot_url = bot_private_url(application, "invite") or "https://t.me/TAVO_BOTO_USERNAME"
+    title = application.bot_data.get("group_title", "NĖRA DROPO")
+    lines = [
+        "🏆 SAVAITĖS INVITE KONKURSAS",
+        "",
+        "Nori pakilti į TOP? 👀",
+        "",
+        "🔗 1. Spausk „DALYVAUTI“",
+        "🤖 2. Bote pasirink „Mano invite“",
+        "👥 3. Dalinkis savo asmenine grupės nuoroda",
+        "⭐ 4. Kiekvienas naujas narys = +1 taškas",
+        "",
+        "🏆 TOP 10 leaderboardas grupėje atsinaujina automatiškai.",
+        "🔄 Kiekvieną pirmadienį 00:00 savaitės taškai resetinami ir prasideda naujas etapas.",
+        "",
+        "⚠️ Tas pats žmogus užskaitomas tik vieną kartą.",
+        "",
+        f"[🎯 DALYVAUTI](buttonurl://{bot_url})",
+    ]
+    if GROUP_PUBLIC_URL:
+        lines.append(f"[🏆 {title}](buttonurl://{GROUP_PUBLIC_URL}:same)")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# User/admin commands and callbacks
+# ---------------------------------------------------------------------------
+
+async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+
+    upsert_user(user)
+    await ensure_group(context)
+    is_admin = await is_admin_user(user.id, context)
+
+    if context.args and context.args[0].lower() == "invite":
+        try:
+            link = await ensure_personal_link(context, user)
+            text = "🔗 Tavo asmeninė invite nuoroda:\n\n" + link + "\n\nKiekvienas naujas žmogus, pirmą kartą prisijungęs per ją, = +1 savaitės taškas."
+        except Exception:
+            log.exception("Nepavyko sukurti invite link")
+            text = "Nepavyko sukurti invite nuorodos. Patikrink boto admin teises grupėje."
+    else:
+        title = context.application.bot_data.get("group_title", "grupė")
+        text = f"👋 {title}\n\nPasirink veiksmą apačioje."
+
+    await update.effective_message.reply_text(text, reply_markup=user_menu(is_admin))
+
+
+async def mylink_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+
+    if update.effective_chat and update.effective_chat.id != user.id:
+        url = bot_private_url(context.application, "invite")
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton("🔗 GAUTI MANO INVITE", url=url)]]) if url else None
+        await update.effective_message.reply_text("🔗 Asmeninę invite nuorodą pasiimk privačiame bote.", reply_markup=markup)
+        return
+
+    try:
+        link = await ensure_personal_link(context, user)
+        await update.effective_message.reply_text(f"🔗 Tavo invite nuoroda:\n\n{link}\n\nNaujas narys per ją = +1 taškas.")
+    except Exception:
+        log.exception("Invite link klaida")
+        await update.effective_message.reply_text("Nepavyko sukurti nuorodos. Botui reikia admin teisės valdyti invite links.")
+
+
+async def points_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    upsert_user(update.effective_user)
+    row = get_user(update.effective_user.id)
+    weekly = int(row["weekly_points"]) if row else 0
+    total = int(row["points"]) if row else 0
+    await update.effective_message.reply_text(f"⭐ Šią savaitę: {weekly} tšk.\n📊 Iš viso: {total} tšk.")
+
+
+async def top_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(weekly_top_text())
+
+
+async def alltime_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(alltime_top_text())
+
+
+async def lastweek_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(last_week_top_text())
+
+
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(user_commands_text())
+
+
+async def how_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.effective_message.reply_text(how_it_works_text())
+
+
+async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    await update.effective_message.reply_text("🛠 ADMIN PANEL\n\nPasirink veiksmą:", reply_markup=admin_panel_markup())
+
+
+async def stats_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    await update.effective_message.reply_text(stats_text())
+
+
+async def contestad_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    await update.effective_message.reply_text("📄 ROSE NOTE „konkursas“ — nukopijuok tekstą žemiau:\n\n" + contest_ad_text(context.application))
+
+
+async def adminnote_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    await update.effective_message.reply_text(admin_commands_text())
+
+
+async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+    upsert_user(user)
+    is_admin = await is_admin_user(user.id, context)
+    menu = user_menu(is_admin)
+
+    if query.data == "back":
+        title = context.application.bot_data.get("group_title", "grupė")
+        await query.edit_message_text(f"👋 {title}\n\nPasirink veiksmą apačioje.", reply_markup=menu)
+        return
+
+    if query.data == "my_link":
+        try:
+            link = await ensure_personal_link(context, user)
+            text = f"🔗 Tavo asmeninė invite nuoroda:\n\n{link}\n\nKiekvienas naujas žmogus per ją = +1 savaitės taškas."
+        except Exception:
+            log.exception("Nepavyko sukurti invite link")
+            text = "Nepavyko sukurti invite nuorodos. Patikrink boto admin teises grupėje."
+        await query.edit_message_text(text, reply_markup=menu)
+        return
+
+    if query.data == "points":
+        row = get_user(user.id)
+        weekly = int(row["weekly_points"]) if row else 0
+        total = int(row["points"]) if row else 0
+        await query.edit_message_text(f"⭐ Šią savaitę: {weekly} tšk.\n📊 Iš viso: {total} tšk.", reply_markup=menu)
+        return
+
+    if query.data == "top":
+        await query.edit_message_text(weekly_top_text(), reply_markup=menu)
+        return
+    if query.data == "alltime":
+        await query.edit_message_text(alltime_top_text(), reply_markup=menu)
+        return
+    if query.data == "lastweek":
+        await query.edit_message_text(last_week_top_text(), reply_markup=menu)
+        return
+    if query.data == "commands":
+        await query.edit_message_text(user_commands_text(), reply_markup=menu)
+        return
+    if query.data == "info":
+        await query.edit_message_text(how_it_works_text(), reply_markup=menu)
+        return
+
+    if query.data == "admin_panel":
+        if not is_admin:
+            await query.edit_message_text("⛔ Admin panelė skirta tik grupės administratoriams.", reply_markup=menu)
+            return
+        await query.edit_message_text("🛠 ADMIN PANEL\n\nPasirink veiksmą:", reply_markup=admin_panel_markup())
+        return
+
+    if query.data.startswith("admin_"):
+        if not is_admin:
+            await query.edit_message_text("⛔ Admin veiksmai skirti tik grupės administratoriams.", reply_markup=menu)
+            return
+
+        if query.data == "admin_ads_status":
+            text = ads_status_text()
+        elif query.data == "admin_ads_next":
+            if get_setting("ads_enabled", "0") != "1":
+                text = "ADS rotacija išjungta. Pirma įjunk ADS."
+            else:
+                set_setting("ads_force_send", "1")
+                text = "⏭ Kitas ADS bus paleistas netrukus."
+        elif query.data == "admin_ads_on":
+            set_setting("ads_enabled", "1")
+            set_setting("ads_force_send", "1")
+            text = "🟢 ADS rotacija įjungta."
+        elif query.data == "admin_ads_off":
+            set_setting("ads_enabled", "0")
+            set_setting("ads_force_send", "0")
+            text = "🔴 ADS rotacija išjungta."
+        elif query.data == "admin_live_refresh":
+            message_id = await refresh_live_leaderboard(context.application)
+            text = f"✅ LIVE TOP atnaujintas.\nMessage ID: {message_id}"
+        elif query.data == "admin_stats":
+            text = stats_text()
+        elif query.data == "admin_contest_ad":
+            text = "📄 ROSE NOTE „konkursas“:\n\n" + contest_ad_text(context.application)
+        elif query.data == "admin_commands":
+            text = admin_commands_text()
+        else:
+            text = "Nežinomas admin veiksmas."
+
+        await query.edit_message_text(text, reply_markup=admin_panel_markup())
+
+
+# ---------------------------------------------------------------------------
+# Rose ADS settings controlled from the bot
+# ---------------------------------------------------------------------------
 
 def get_ads_notes():
     raw = get_setting("ads_notes", '["ads"]')
@@ -748,10 +895,8 @@ def get_ads_notes():
         notes = json.loads(raw)
     except Exception:
         notes = ["ads"]
-
     if not isinstance(notes, list):
         return ["ads"]
-
     clean = []
     for note in notes:
         note = str(note).strip()
@@ -763,73 +908,33 @@ def get_ads_notes():
 def ads_status_text():
     notes = get_ads_notes()
     enabled = get_setting("ads_enabled", "0") == "1"
-
     try:
         interval = int(get_setting("ads_interval_minutes", "30"))
     except ValueError:
         interval = 30
-
     try:
-        idx = int(get_setting("ads_next_index", "0"))
+        index = int(get_setting("ads_next_index", "0"))
     except ValueError:
-        idx = 0
-
-    next_note = notes[idx % len(notes)] if notes else "—"
-
+        index = 0
+    next_note = notes[index % len(notes)] if notes else "—"
     return (
         "📢 ROSE ADS ROTACIJA\n\n"
         f"Būsena: {'🟢 ĮJUNGTA' if enabled else '🔴 IŠJUNGTA'}\n"
         f"Intervalas: kas {interval} min.\n"
         f"Rose notes: {', '.join(notes) if notes else 'nėra'}\n"
         f"Kitas: {next_note}\n\n"
-        "Valdymas:\n"
-        "/adsset ads konkursas promo\n"
-        "/adsinterval 10\n"
-        "/adson\n"
-        "/adsoff\n"
-        "/adsnext"
+        "Keisti:\n/adsset ads konkursas promo\n/adsinterval 10\n/adson\n/adsoff\n/adsnext"
     )
 
 
-async def user_can_control_ads(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    user = update.effective_user
-    if not user:
-        return False
-
-    # Explicit ADMIN_IDS visada leidžiami.
-    if user.id in ADMIN_IDS:
-        return True
-
-    # Jei ADMIN_IDS neužpildytas arba žmogus ne sąraše,
-    # leidžiame tik tikriems grupės admin/owner.
-    try:
-        group_id = await ensure_group(context)
-        member = await context.bot.get_chat_member(group_id, user.id)
-        return member.status in {
-            ChatMemberStatus.ADMINISTRATOR,
-            ChatMemberStatus.OWNER,
-        }
-    except Exception:
-        return False
-
-
-async def require_ads_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    ok = await user_can_control_ads(update, context)
-    if not ok and update.effective_message:
-        await update.effective_message.reply_text(
-            "⛔ Šį ADS valdymą gali keisti tik grupės administratorius."
-        )
-    return ok
-
-
 async def ads_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
     await update.effective_message.reply_text(ads_status_text())
 
 
 async def adsset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
 
     notes = []
@@ -837,180 +942,151 @@ async def adsset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         note = raw.strip().lstrip("#")
         if not note:
             continue
-        # Rose note vardas turi būti vienas žodis.
-        if not re.fullmatch(r"[A-Za-z0-9_\\-]{1,64}", note):
-            await update.effective_message.reply_text(
-                f"❌ Netinkamas note vardas: {note}\n"
-                "Naudok, pvz.: /adsset ads konkursas promo"
-            )
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", note):
+            await update.effective_message.reply_text(f"❌ Netinkamas note vardas: {note}\nPvz.: /adsset ads konkursas promo")
             return
         if note not in notes:
             notes.append(note)
 
     if not notes:
-        await update.effective_message.reply_text(
-            "Naudojimas:\n/adsset ads konkursas promo"
-        )
+        await update.effective_message.reply_text("Naudojimas:\n/adsset ads konkursas promo")
         return
 
     set_setting("ads_notes", json.dumps(notes, ensure_ascii=False))
     set_setting("ads_next_index", "0")
-
-    await update.effective_message.reply_text(
-        "✅ ADS rotacija atnaujinta:\n"
-        + " → ".join(notes)
-        + "\n\nDabar intervalą gali keisti su /adsinterval 10"
-    )
+    await update.effective_message.reply_text("✅ ADS rotacija:\n" + " → ".join(notes) + "\n\nIntervalą keisk su /adsinterval 10")
 
 
 async def adsinterval_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
-
     if not context.args:
-        await update.effective_message.reply_text(
-            "Naudojimas: /adsinterval 10\n"
-            "Skaičius = minutės."
-        )
+        await update.effective_message.reply_text("Naudojimas: /adsinterval 10")
         return
-
     try:
         minutes = int(context.args[0])
     except ValueError:
-        await update.effective_message.reply_text(
-            "❌ Intervalas turi būti skaičius, pvz. /adsinterval 10"
-        )
+        await update.effective_message.reply_text("❌ Intervalas turi būti skaičius.")
         return
-
-    # Sąmoningai neduodame labai agresyvaus intervalo.
     if minutes < 5 or minutes > 1440:
-        await update.effective_message.reply_text(
-            "❌ Galimas intervalas: nuo 5 iki 1440 min."
-        )
+        await update.effective_message.reply_text("❌ Galimas intervalas: 5–1440 min.")
         return
-
     set_setting("ads_interval_minutes", str(minutes))
-
-    await update.effective_message.reply_text(
-        f"✅ ADS intervalas pakeistas: kas {minutes} min."
-    )
+    await update.effective_message.reply_text(f"✅ ADS intervalas: kas {minutes} min.")
 
 
 async def adson_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
-
     if not get_ads_notes():
-        await update.effective_message.reply_text(
-            "Pirma pridėk Rose notes, pvz.:\n/adsset ads konkursas"
-        )
+        await update.effective_message.reply_text("Pirma nustatyk notes, pvz. /adsset ads konkursas")
         return
-
     set_setting("ads_enabled", "1")
     set_setting("ads_force_send", "1")
-
-    await update.effective_message.reply_text(
-        "🟢 ADS rotacija įjungta. Pirmas postas bus iškviestas netrukus."
-    )
+    await update.effective_message.reply_text("🟢 ADS rotacija įjungta.")
 
 
 async def adsoff_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
-
     set_setting("ads_enabled", "0")
     set_setting("ads_force_send", "0")
-
-    await update.effective_message.reply_text(
-        "🔴 ADS rotacija išjungta."
-    )
+    await update.effective_message.reply_text("🔴 ADS rotacija išjungta.")
 
 
 async def adsnext_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await require_ads_admin(update, context):
+    if not await require_admin(update, context):
         return
-
     if get_setting("ads_enabled", "0") != "1":
-        await update.effective_message.reply_text(
-            "ADS rotacija dabar išjungta. Pirma naudok /adson."
-        )
+        await update.effective_message.reply_text("ADS rotacija išjungta. Pirma /adson.")
         return
-
     set_setting("ads_force_send", "1")
-    await update.effective_message.reply_text(
-        "⏭ Kitas ADS bus paleistas netrukus."
-    )
+    await update.effective_message.reply_text("⏭ Kitas ADS bus paleistas netrukus.")
+
+
+# ---------------------------------------------------------------------------
+# LIVE TOP admin commands
+# ---------------------------------------------------------------------------
+
+async def liveboard_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    set_setting("live_leaderboard_enabled", "1")
+    message_id = await refresh_live_leaderboard(context.application)
+    await update.effective_message.reply_text(f"✅ LIVE TOP įjungtas / atnaujintas. ID: {message_id}")
+
+
+async def liveboardnew_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    set_setting("live_leaderboard_enabled", "1")
+    message_id = await refresh_live_leaderboard(context.application, force_new=True)
+    await update.effective_message.reply_text(f"✅ Sukurtas naujas LIVE TOP postas. ID: {message_id}")
+
+
+async def liveboardoff_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    set_setting("live_leaderboard_enabled", "0")
+    await update.effective_message.reply_text("🔴 LIVE TOP auto update išjungtas.")
+
+
+async def topad_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await require_admin(update, context):
+        return
+    group_id = await ensure_group(context)
+    message = await context.bot.send_message(chat_id=group_id, text=live_leaderboard_text(), reply_markup=live_leaderboard_markup(context.application))
+    await update.effective_message.reply_text(f"✅ Papildomas TOP postas įkeltas. ID: {message.message_id}")
+
+
+# ---------------------------------------------------------------------------
+# Membership tracking
+# ---------------------------------------------------------------------------
 
 def became_member(old_status: str, new_status: str) -> bool:
-    old_in = old_status in {
-        ChatMemberStatus.MEMBER,
-        ChatMemberStatus.ADMINISTRATOR,
-        ChatMemberStatus.OWNER,
-        ChatMemberStatus.RESTRICTED,
-    }
-    new_in = new_status in {
-        ChatMemberStatus.MEMBER,
-        ChatMemberStatus.ADMINISTRATOR,
-        ChatMemberStatus.OWNER,
-        ChatMemberStatus.RESTRICTED,
-    }
+    old_in = old_status in {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED}
+    new_in = new_status in {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER, ChatMemberStatus.RESTRICTED}
     return (not old_in) and new_in
 
 
 async def on_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cmu = update.chat_member
-    if not cmu:
+    change = update.chat_member
+    if not change:
         return
-
     group_id = await ensure_group(context)
-
-    if cmu.chat.id != group_id:
+    if change.chat.id != group_id:
         return
 
-    joined_user = cmu.new_chat_member.user
-
-    if not became_member(
-        cmu.old_chat_member.status,
-        cmu.new_chat_member.status,
-    ):
+    joined_user = change.new_chat_member.user
+    if not became_member(change.old_chat_member.status, change.new_chat_member.status):
         return
-
     if joined_user.is_bot:
         return
 
     inviter_id = None
     source = None
 
-    # Patikimiausia: žmogus įėjo per konkretaus nario unikalią boto invite nuorodą.
-    if cmu.invite_link:
-        inviter_id = owner_by_link(cmu.invite_link.invite_link)
+    if change.invite_link:
+        inviter_id = owner_by_link(group_id, change.invite_link.invite_link)
         if inviter_id:
             source = "ref_link"
 
-    # Tiesioginis Add Member.
-    # Join request patvirtinusiam adminui taško nepriskiriame.
     if (
         inviter_id is None
-        and not getattr(cmu, "via_join_request", False)
-        and not getattr(cmu, "via_chat_folder_invite_link", False)
-        and cmu.from_user
-        and cmu.from_user.id != joined_user.id
-        and not cmu.from_user.is_bot
+        and not getattr(change, "via_join_request", False)
+        and not getattr(change, "via_chat_folder_invite_link", False)
+        and change.from_user
+        and change.from_user.id != joined_user.id
+        and not change.from_user.is_bot
     ):
-        inviter_id = cmu.from_user.id
+        inviter_id = change.from_user.id
         source = "direct_add"
-        upsert_user(cmu.from_user)
+        upsert_user(change.from_user)
 
     if not inviter_id:
         return
 
-    awarded = award_once(
-        group_id=group_id,
-        joined_user_id=joined_user.id,
-        inviter_user_id=inviter_id,
-        source=source,
-    )
-
+    awarded = award_once(group_id, joined_user.id, inviter_id, source)
     if not awarded:
         return
 
@@ -1018,104 +1094,113 @@ async def on_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weekly = int(inviter["weekly_points"]) if inviter else 0
     total = int(inviter["points"]) if inviter else 0
 
-    # Telegram botai gali PM rašyti tik tiems, kurie jau pradėjo botą.
     try:
-        await context.bot.send_message(
-            chat_id=inviter_id,
-            text=(
-                f"✅ +1 taškas!\n"
-                f"⭐ Šią savaitę: {weekly}\n"
-                f"📊 Iš viso: {total}"
-            ),
-        )
+        await context.bot.send_message(chat_id=inviter_id, text=f"✅ +1 taškas!\n⭐ Šią savaitę: {weekly}\n📊 Iš viso: {total}")
     except Exception:
         pass
 
-    log.info(
-        "Užskaitytas +1: inviter=%s joined=%s source=%s",
-        inviter_id,
-        joined_user.id,
-        source,
-    )
+    log.info("Užskaitytas +1: inviter=%s joined=%s source=%s", inviter_id, joined_user.id, source)
 
     try:
-        if get_setting("live_leaderboard_enabled", "1") == "1":
-            await refresh_live_leaderboard(context.application)
+        await refresh_live_leaderboard(context.application)
     except Exception:
-        log.exception("Nepavyko iškart atnaujinti LIVE TOP 10")
+        log.exception("Nepavyko atnaujinti LIVE TOP po +1")
 
+
+# ---------------------------------------------------------------------------
+# Background tasks and command menu
+# ---------------------------------------------------------------------------
 
 async def weekly_reset_loop(application: Application):
     while True:
         try:
             changed, old_week, previous_top = ensure_current_week()
-
             if changed:
                 log.info("Savaitės resetas: %s -> %s", old_week, current_week_key())
-
                 if WEEK_RESET_ANNOUNCE:
                     group_id = application.bot_data.get("group_id")
                     if group_id:
                         lines = [f"🏁 {old_week} savaitės invite konkursas baigtas!"]
-
                         if previous_top:
-                            lines.append("")
-                            lines.append("🏆 TOP 3:")
-                            for i, row in enumerate(previous_top[:3], 1):
-                                lines.append(
-                                    f"{i}. {display_name(row)} — {row['weekly_points']} tšk."
-                                )
-
-                        lines.append("")
-                        lines.append("🔄 Nauja savaitė prasidėjo — taškai vėl nuo 0.")
-                        lines.append("🎯 /start bote → gauk savo invite nuorodą.")
-
+                            lines.extend(["", "🏆 TOP 3:"])
+                            for index, row in enumerate(previous_top[:3], 1):
+                                lines.append(f"{index}. {display_name(row)} — {row['weekly_points']} tšk.")
+                        lines.extend(["", "🔄 Nauja savaitė prasidėjo — savaitės taškai vėl nuo 0."])
                         try:
-                            await application.bot.send_message(
-                                chat_id=group_id,
-                                text="\n".join(lines),
-                            )
+                            await application.bot.send_message(chat_id=group_id, text="\n".join(lines))
                         except Exception:
-                            log.exception("Nepavyko paskelbti savaitės reseto grupėje.")
-
+                            log.exception("Nepavyko paskelbti savaitės reseto.")
                 try:
                     await refresh_live_leaderboard(application)
                 except Exception:
-                    log.exception("Nepavyko atnaujinti LIVE TOP po savaitės reseto.")
-
+                    log.exception("Nepavyko atnaujinti LIVE TOP po reseto.")
         except Exception:
             log.exception("Weekly reset loop klaida")
-
         await asyncio.sleep(60)
+
+
+async def set_command_menus(application: Application):
+    user_commands = [
+        BotCommand("start", "Atidaryti boto meniu"),
+        BotCommand("mylink", "Gauti mano invite nuorodą"),
+        BotCommand("points", "Mano taškai"),
+        BotCommand("top", "Savaitės TOP 10"),
+        BotCommand("alltime", "Viso laiko TOP 10"),
+        BotCommand("lastweek", "Praėjusios savaitės TOP"),
+        BotCommand("help", "Vartotojo komandos"),
+        BotCommand("how", "Kaip veikia konkursas"),
+    ]
+    await application.bot.set_my_commands(user_commands)
+
+    group_id = application.bot_data.get("group_id")
+    if not group_id:
+        return
+
+    admin_commands = user_commands + [
+        BotCommand("admin", "Admin panelė"),
+        BotCommand("stats", "Sistemos statistika"),
+        BotCommand("ads", "Rose ADS statusas"),
+        BotCommand("adsset", "Nustatyti ADS notes"),
+        BotCommand("adsinterval", "Keisti ADS intervalą"),
+        BotCommand("adson", "Įjungti ADS"),
+        BotCommand("adsoff", "Išjungti ADS"),
+        BotCommand("adsnext", "Kitas ADS dabar"),
+        BotCommand("liveboard", "Atnaujinti LIVE TOP"),
+        BotCommand("liveboardnew", "Naujas LIVE TOP postas"),
+        BotCommand("liveboardoff", "Išjungti LIVE TOP"),
+        BotCommand("topad", "Papildomas TOP postas"),
+        BotCommand("contestad", "Rose konkursas note tekstas"),
+        BotCommand("adminnote", "Visos admin komandos"),
+    ]
+
+    try:
+        await application.bot.set_my_commands(admin_commands, scope=BotCommandScopeChatAdministrators(chat_id=group_id))
+    except Exception:
+        log.exception("Nepavyko nustatyti admin command menu")
 
 
 async def post_init(application: Application):
     chat = await application.bot.get_chat(GROUP_CHAT_RAW)
+    me = await application.bot.get_me()
+
     application.bot_data["group_id"] = chat.id
     application.bot_data["group_title"] = chat.title or str(chat.id)
+    application.bot_data["bot_username"] = me.username
+    application.bot_data["_leaderboard_lock"] = asyncio.Lock()
 
     ensure_current_week()
+    await set_command_menus(application)
 
-    application.bot_data["_weekly_reset_task"] = asyncio.create_task(
-        weekly_reset_loop(application)
-    )
+    application.bot_data["_weekly_reset_task"] = asyncio.create_task(weekly_reset_loop(application))
 
-    me = await application.bot.get_me()
-    application.bot_data["bot_username"] = me.username
-
-    if LIVE_LEADERBOARD_ENABLED:
-        application.bot_data["_live_leaderboard_task"] = asyncio.create_task(live_leaderboard_loop(application))
+    if get_setting("live_leaderboard_enabled", "1" if LIVE_LEADERBOARD_ENABLED else "0") == "1":
         try:
             await refresh_live_leaderboard(application)
         except Exception:
-            log.exception("Nepavyko sukurti LIVE TOP 10 posto paleidimo metu.")
+            log.exception("Nepavyko paleisti LIVE TOP")
+        application.bot_data["_live_leaderboard_task"] = asyncio.create_task(live_leaderboard_loop(application))
 
-    log.info(
-        "Botas @%s prijungtas prie %s (%s)",
-        me.username,
-        chat.title,
-        chat.id,
-    )
+    log.info("Botas @%s prijungtas prie %s (%s)", me.username, chat.title, chat.id)
 
 
 async def post_shutdown(application: Application):
@@ -1138,15 +1223,22 @@ def main():
         .build()
     )
 
-    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("mylink", mylink_cmd))
     app.add_handler(CommandHandler("points", points_cmd))
     app.add_handler(CommandHandler("top", top_cmd))
     app.add_handler(CommandHandler("alltime", alltime_cmd))
     app.add_handler(CommandHandler("lastweek", lastweek_cmd))
-    app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("commands", help_cmd))
+    app.add_handler(CommandHandler("how", how_cmd))
+    app.add_handler(CommandHandler("kaipveikia", how_cmd))
 
-    # Rose ADS rotacijos administravimo komandos.
+    app.add_handler(CommandHandler("admin", admin_cmd))
+    app.add_handler(CommandHandler("stats", stats_cmd))
+    app.add_handler(CommandHandler("contestad", contestad_cmd))
+    app.add_handler(CommandHandler("adminnote", adminnote_cmd))
+
     app.add_handler(CommandHandler("ads", ads_cmd))
     app.add_handler(CommandHandler("adsset", adsset_cmd))
     app.add_handler(CommandHandler("adsinterval", adsinterval_cmd))
@@ -1160,24 +1252,14 @@ def main():
     app.add_handler(CommandHandler("topad", topad_cmd))
 
     app.add_handler(CallbackQueryHandler(on_button))
-    app.add_handler(
-        ChatMemberHandler(
-            on_chat_member,
-            ChatMemberHandler.CHAT_MEMBER,
-        )
-    )
+    app.add_handler(ChatMemberHandler(on_chat_member, ChatMemberHandler.CHAT_MEMBER))
 
-    print("Referral botas paleistas.")
+    print("Referral / konkurso botas paleistas.")
     print(f"Savaitės resetas: pirmadienį 00:00 ({WEEK_TIMEZONE})")
     print("CTRL+C sustabdyti.")
 
     app.run_polling(
-        allowed_updates=[
-            "message",
-            "callback_query",
-            "chat_member",
-            "my_chat_member",
-        ],
+        allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
         drop_pending_updates=False,
     )
 

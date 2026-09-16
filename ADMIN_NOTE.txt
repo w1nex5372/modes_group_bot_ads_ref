@@ -1,0 +1,58 @@
+🛠 ADMIN CHEAT-SHEET
+
+BENDRA
+/admin
+Atidaro admin panelę su mygtukais.
+
+/stats
+Parodo DB vartotojus, invite skaičių ir savaitės taškus.
+
+/adminnote
+Parodo visas admin komandas bote.
+
+/contestad
+Sugeneruoja paruoštą Rose „konkursas“ note tekstą su tikru boto linku.
+
+LIVE TOP
+/liveboard
+Įjungia ir atnaujina esamą LIVE TOP 10 postą.
+
+/liveboardnew
+Sukuria naują LIVE TOP 10 postą. Naudok tik jei seno nebeliko.
+
+/liveboardoff
+Sustabdo automatinį LIVE TOP atnaujinimą.
+
+/topad
+Įmeta papildomą dabartinio TOP postą, bet jis nėra pagrindinis LIVE postas.
+
+ROSE ADS
+/ads
+Statusas: ON/OFF, intervalas, note eilė, kas bus kitas.
+
+/adsset ads konkursas promo
+Nustato Rose saved-note rotacijos eilę.
+
+/adsinterval 10
+Keičia intervalą minutėmis. Galima 5–1440.
+
+/adson
+Įjungia Rose rotaciją.
+
+/adsoff
+Išjungia Rose rotaciją.
+
+/adsnext
+Paleidžia kitą note netrukus.
+
+VARTOTOJŲ KOMANDOS
+/mylink
+/points
+/top
+/alltime
+/lastweek
+/help
+/how
+
+PASTABA
+Pilnas sistemos paaiškinimas automatiškai grupėje nepostinamas. Jį žmogus mato tik paspaudęs „Kaip veikia“ arba parašęs /how.

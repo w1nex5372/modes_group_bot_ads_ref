@@ -1,0 +1,10 @@
+# Viena reklamos grupė vienoje eilutėje.
+# Tavo USER ACCOUNT turi turėti teisę ten rašyti.
+#
+# Pvz.:
+# @grupe1
+# @grupe2
+# https://t.me/grupe3
+# -1001234567890
+#
+# Palik tik komentarus / tuščią, jei auto-forward nereikalingas.

@@ -1,9 +1,0 @@
-# ČIA DEDI TIK GRUPES, Į KURIAS NORI AUTO-FORWARDINTI REKLAMĄ.
-# Viena grupė = viena eilutė.
-#
-# Pvz.:
-# @grupe1
-# @grupe2
-# https://t.me/grupe3
-#
-# Jei auto-forward į kitas grupes nereikalingas, palik šį failą tuščią.
