@@ -1,5 +1,4 @@
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -15,8 +14,8 @@ def start(name, script):
 
 def main():
     procs = [
-        ("Referral botas", "branded_bot.py"),
-        ("Auto forwarderis", "forwarder.py"),
+        ("NERA DROPO botas", "live_ui.py"),
+        ("Auto forwarderis / Rose ADS", "forwarder.py"),
     ]
 
     running = [start(name, script) for name, script in procs]
