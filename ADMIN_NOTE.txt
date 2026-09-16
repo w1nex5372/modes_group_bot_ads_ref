@@ -5,54 +5,80 @@ BENDRA
 Atidaro admin panelę su mygtukais.
 
 /stats
-Parodo DB vartotojus, invite skaičių ir savaitės taškus.
+Parodo sistemos statistiką.
 
 /adminnote
-Parodo visas admin komandas bote.
+Parodo šį admin komandų sąrašą bote.
 
-/contestad
-Sugeneruoja paruoštą Rose „konkursas“ note tekstą su tikru boto linku.
+TOP SISTEMA
+/top
+Savaitės invite TOP 10.
+
+/msgtop
+Savaitės žinučių TOP 10.
+
+/alltime
+Viso laiko invite TOP 10.
+
+/lastweek
+Praėjusios savaitės invite TOP.
+
+Visuose TOP sąrašuose dabartiniai grupės adminai automatiškai praleidžiami.
 
 LIVE TOP
 /liveboard
-Įjungia ir atnaujina esamą LIVE TOP 10 postą.
+Įjungia / atnaujina pagrindinį LIVE invite TOP.
 
 /liveboardnew
-Sukuria naują LIVE TOP 10 postą. Naudok tik jei seno nebeliko.
+Sukuria naują LIVE TOP postą. Naudok tik jei seno nebeliko.
 
 /liveboardoff
-Sustabdo automatinį LIVE TOP atnaujinimą.
+Sustabdo LIVE TOP automatinį atnaujinimą.
 
 /topad
-Įmeta papildomą dabartinio TOP postą, bet jis nėra pagrindinis LIVE postas.
+Įmeta papildomą dabartinio invite TOP postą.
 
 ROSE ADS
+/contestad
+Sugeneruoja savaitės konkurso Rose note tekstą su tikru boto linku.
+
+/promoad
+Sugeneruoja bendrą grupės promo Rose note tekstą.
+
 /ads
-Statusas: ON/OFF, intervalas, note eilė, kas bus kitas.
+Parodo rotacijos būseną, intervalą, note eilę ir kas bus kitas.
 
-/adsset ads konkursas promo
-Nustato Rose saved-note rotacijos eilę.
+/adsset konkursas promo
+Nustato Rose saved-note rotaciją.
 
-/adsinterval 10
-Keičia intervalą minutėmis. Galima 5–1440.
+/adsinterval 30
+Keičia intervalą minutėmis. Galima 5–1440 min.
 
 /adson
-Įjungia Rose rotaciją.
+Įjungia ADS rotaciją.
 
 /adsoff
-Išjungia Rose rotaciją.
+Išjungia ADS rotaciją.
 
 /adsnext
 Paleidžia kitą note netrukus.
+
+REKOMENDUOJAMAS STARTAS
+1. Bote: /contestad
+2. Gautą tekstą išsaugok Rose kaip note „konkursas“.
+3. Bote: /promoad
+4. Gautą tekstą išsaugok Rose kaip note „promo“.
+5. /adsset konkursas promo
+6. /adsinterval 30
+7. /adson
+8. /adsnext — testui iškart.
 
 VARTOTOJŲ KOMANDOS
 /mylink
 /points
 /top
+/msgtop
 /alltime
 /lastweek
 /help
 /how
-
-PASTABA
-Pilnas sistemos paaiškinimas automatiškai grupėje nepostinamas. Jį žmogus mato tik paspaudęs „Kaip veikia“ arba parašęs /how.
