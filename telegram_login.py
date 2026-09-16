@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from dotenv import load_dotenv
-from telethon import TelegramClient, errors
+from telethon import TelegramClient, errors, functions
 
 load_dotenv()
 
@@ -22,6 +22,7 @@ def usage():
     print("  telegram_login.py resend")
     print("  telegram_login.py finish 12345")
     print("  telegram_login.py finish 12345 TAVO_2FA_PASSWORD")
+    print("  arba naudok telegram_qr_login.bat")
 
 
 def code_type_name(value):
@@ -84,6 +85,8 @@ async def send_code(phone: str):
         print("Kai gausi kodą: telegram_login.bat finish KODAS")
         if getattr(result, "next_type", None) is not None:
             print("Jei pirmu būdu kodo negausi, sulauk timeout ir paleisk: telegram_login.bat resend")
+        else:
+            print("Jei kodo nėra Telegram app'e, rekomenduoju: telegram_qr_login.bat")
     except errors.FloodWaitError as e:
         raise SystemExit(f"⏳ Telegram riboja bandymus. Palauk {e.seconds} s. ir nebandyk kartoti anksčiau.")
     finally:
@@ -110,12 +113,16 @@ async def resend_code():
             print(f"✅ Session jau prisijungusi kaip @{me.username or me.id}")
             STATE_FILE.unlink(missing_ok=True)
             return
-        result = await client.resend_code_request(phone, phone_code_hash)
+        result = await client(functions.auth.ResendCodeRequest(phone, phone_code_hash))
         save_state(phone, result)
         print_delivery(result)
         print("Kai gausi kodą: telegram_login.bat finish KODAS")
     except errors.FloodWaitError as e:
         raise SystemExit(f"⏳ Telegram riboja resend. Palauk {e.seconds} s.")
+    except errors.PhoneCodeExpiredError:
+        raise SystemExit("❌ Senas kodas/hash baigė galioti. Paleisk naują 'send' arba naudok telegram_qr_login.bat.")
+    except errors.RPCError as e:
+        raise SystemExit(f"❌ Telegram neleidžia resend šiuo būdu: {type(e).__name__}: {e}\nNaudok telegram_qr_login.bat.")
     finally:
         await client.disconnect()
 
