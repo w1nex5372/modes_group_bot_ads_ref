@@ -39,12 +39,16 @@ def contest_caption(username):
     return "\n".join([
         "🏆 SAVAITĖS INVITE KONKURSAS",
         "",
-        "🔗 Gauk savo invite ir dalinkis.",
-        "👥 Naujas narys = +1 taškas.",
-        "➕ Pridedi žmogų į grupę = irgi +1.",
+        "Rink taškus ir kilk į TOP 👀",
         "",
+        "🔗 Invite nuoroda → +1 už naują narį",
+        "➕ Add Members → +1 už naują narį",
+        "⭐ Abu būdai sumuojasi",
+        "",
+        "🏆 TOP atsinaujina automatiškai",
         "🔄 Reset: pirmadienį 00:00",
-        "🛡 Adminai TOP'e nerodomi.",
+        "⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą",
+        "🛡 Adminai TOP'e nerodomi",
         "",
         f"[🎯 DALYVAUTI](buttonurl://{bot_url})",
         f"[👑 NĖRA DROPO](buttonurl://{GROUP_URL}:same)",
@@ -54,15 +58,20 @@ def contest_caption(username):
 def promo_caption(username):
     bot_url = f"https://t.me/{username}?start=invite"
     return "\n".join([
-        "👑 NĖRA DROPO",
+        "👑 NĖRA DROPO · INVITE SISTEMA",
         "",
-        "Visa info vienoje vietoje 👀",
-        "🏆 Savaitinis invite konkursas",
-        "💬 Aktyviausių narių TOP",
-        "📈 Bendruomenė auga kasdien",
+        "Kaip rinkti taškus?",
         "",
-        f"[🚀 PRISIJUNGTI](buttonurl://{GROUP_URL})",
-        f"[🎯 DALYVAUTI](buttonurl://{bot_url}:same)",
+        "🔗 1. Bote pasiimk „Mano invite“ ir dalinkis",
+        "➕ 2. Arba pridėk žmogų tiesiai į grupę per Add Members",
+        "⭐ 3. Kiekvienas naujas narys = +1 taškas",
+        "",
+        "🏆 Savaitės TOP matomas live",
+        "🔄 Pirmadienį savaitės taškai prasideda nuo 0",
+        "⚠️ Tas pats žmogus užskaitomas vieną kartą",
+        "",
+        f"[🤖 ATIDARYTI BOTĄ](buttonurl://{bot_url})",
+        f"[🚀 ATIDARYTI GRUPĘ](buttonurl://{GROUP_URL}:same)",
     ])
 
 
@@ -115,7 +124,7 @@ async def main():
     contest = ASSETS / "ads" / "contest.png"
     promo = ASSETS / "ads" / "promo.png"
     if not contest.exists() or not promo.exists():
-        raise SystemExit("Nerasti assets/ads/contest.png arba promo.png. Padaryk git pull.")
+        raise SystemExit("Nerasti assets/ads/contest.png arba promo.png. Įkelk assets ir bandyk dar kartą.")
 
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
     await client.start()
@@ -134,6 +143,7 @@ async def main():
         print("/adsfast 15")
         print("/adson")
         print("/adsnext")
+        print("\nCustom emoji į Rose tekstą gali susidėti ranka po /get preview.")
     finally:
         await client.disconnect()
 
