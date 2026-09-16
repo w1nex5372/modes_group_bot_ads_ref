@@ -1,16 +1,18 @@
-👤 VARTOTOJO KOMANDOS
+👤 NĖRA DROPO · KAIP RINKTI TAŠKUS
 
 /start — atidaryti boto meniu
 /mylink — gauti savo invite nuorodą
 /points — mano savaitės ir bendri taškai
-/top — savaitės TOP 10
+/top — savaitės invite TOP 10
 /alltime — viso laiko TOP 10
 /lastweek — praėjusios savaitės TOP
-/help — komandų sąrašas
-/how — kaip veikia konkursas
+/how — kaip veikia
 
-Pagrindinis naudojimas:
-1. Atidaryk botą.
-2. Spausk „Mano invite“.
-3. Dalinkis savo nuoroda.
-4. Naujas narys = +1 taškas.
+TAŠKAI
+🔗 Naujas narys per tavo invite nuorodą = +1
+➕ Pats pridedi naują žmogų į grupę per Add Members = +1
+⭐ Abu būdai sumuojasi
+⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą
+
+Savaitės TOP resetinamas pirmadienį 00:00.
+Bendri viso laiko taškai lieka.
