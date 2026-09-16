@@ -2,19 +2,20 @@ ROSE NOTE PAVADINIMAS: konkursas
 
 🏆 SAVAITĖS INVITE KONKURSAS
 
-Nori pakilti į TOP? 👀
+Rink taškus ir kilk į TOP 👀
 
-🔗 1. Spausk „DALYVAUTI“
-🤖 2. Bote pasirink „Mano invite“
-👥 3. Dalinkis savo asmenine grupės nuoroda
-⭐ 4. Kiekvienas naujas narys = +1 taškas
+🔗 Invite nuoroda → +1 už naują narį
+➕ Add Members → +1 už naują narį
+⭐ Abu būdai sumuojasi
 
-🏆 TOP 10 leaderboardas grupėje atsinaujina automatiškai.
-🔄 Kiekvieną pirmadienį 00:00 savaitės taškai resetinami ir prasideda naujas etapas.
-
-⚠️ Tas pats žmogus užskaitomas tik vieną kartą.
+🏆 TOP atsinaujina automatiškai
+🔄 Reset: pirmadienį 00:00
+⚠️ Tas pats žmogus skaičiuojamas tik 1 kartą
+🛡 Adminai TOP'e nerodomi
 
 [🎯 DALYVAUTI](buttonurl://https://t.me/TAVO_BOTO_USERNAME?start=invite)
-[🏆 NĖRA DROPO](buttonurl://https://t.me/NERADAUDROPO:same)
+[👑 NĖRA DROPO](buttonurl://https://t.me/NERADAUDROPO:same)
 
-Patogiau: paleistame bote adminas gali parašyti /contestad ir botas pats sugeneruos šitą tekstą su tikru boto bei grupės linku.
+PASTABA:
+Custom emoji į šitą tekstą gali susidėti ranka prieš /save konkursas.
+Jei nori automatinio teksto su tikrais linkais, bote naudok /contestad.
