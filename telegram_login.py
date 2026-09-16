@@ -22,6 +22,22 @@ def usage():
     print("  telegram_login.py finish 12345 TAVO_2FA_PASSWORD")
 
 
+def code_type_name(value):
+    if value is None:
+        return "nežinoma"
+    name = type(value).__name__
+    mapping = {
+        "SentCodeTypeApp": "Telegram programėlę (service chat 'Telegram')",
+        "SentCodeTypeSms": "SMS",
+        "SentCodeTypeCall": "telefono skambutį",
+        "SentCodeTypeFlashCall": "flash call",
+        "SentCodeTypeMissedCall": "praleistą skambutį",
+        "SentCodeTypeEmailCode": "el. paštą",
+        "SentCodeTypeFragmentSms": "Fragment SMS",
+    }
+    return mapping.get(name, name)
+
+
 async def send_code(phone: str):
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
     await client.connect()
@@ -35,8 +51,18 @@ async def send_code(phone: str):
             json.dumps({"phone": phone, "phone_code_hash": result.phone_code_hash}, ensure_ascii=False),
             encoding="utf-8",
         )
-        print("✅ Telegram kodas išsiųstas.")
+        print("✅ Telegram prisijungimo kodas paprašytas.")
+        print(f"📩 Telegram nurodė pristatymą į: {code_type_name(getattr(result, 'type', None))}")
+        next_type = getattr(result, "next_type", None)
+        timeout = getattr(result, "timeout", None)
+        if next_type is not None:
+            print(f"↪️ Kitas galimas būdas: {code_type_name(next_type)}")
+        if timeout:
+            print(f"⏱ Kitas būdas gali tapti prieinamas maždaug po {timeout} s.")
+        print("Jei rodo Telegram programėlę, ieškok oficialiame 'Telegram' service chate, ne SMS žinutėse.")
         print("Dabar paleisk: telegram_login.bat finish KODAS")
+    except errors.FloodWaitError as e:
+        raise SystemExit(f"⏳ Telegram riboja bandymus. Palauk {e.seconds} s. ir nebandyk kartoti anksčiau.")
     finally:
         await client.disconnect()
 
