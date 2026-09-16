@@ -1,0 +1,85 @@
+SAVAITĖS ADS PALEIDIMAS
+
+Tikslas: sukti 2 Rose reklamas:
+1) konkursas
+2) promo
+
+==================================================
+1. KONKURSO ADS
+==================================================
+
+Savo referral/konkurso bote parašyk:
+
+/contestad
+
+Botas sugeneruos tekstą su tikru tavo boto linku.
+Tą tekstą įkelk į grupę ir išsaugok Rose kaip note:
+
+konkursas
+
+Paprasčiausias būdas:
+- įkelk paruoštą postą;
+- Reply į tą postą;
+- parašyk /save konkursas
+
+Patikrink:
+
+/get konkursas
+
+==================================================
+2. BENDRAS GRUPĖS PROMO ADS
+==================================================
+
+Savo bote parašyk:
+
+/promoad
+
+Botas sugeneruos bendrą grupės promo tekstą su grupės ir boto mygtukais.
+Tą postą išsaugok Rose kaip:
+
+promo
+
+Patikrink:
+
+/get promo
+
+==================================================
+3. PALEISTI ROTACIJĄ
+==================================================
+
+Savo referral boto admin valdyme:
+
+/adsset konkursas promo
+/adsinterval 30
+/adson
+
+Testui iš karto:
+
+/adsnext
+
+Statusas:
+
+/ads
+
+Sustabdyti:
+
+/adsoff
+
+Jei intervalas 30 min., eis:
+
+00:00 konkursas
+00:30 promo
+01:00 konkursas
+01:30 promo
+...
+
+Jei nori 20 min.:
+
+/adsinterval 20
+
+Jei vėliau susikursi dar vieną Rose note, pvz. „partneris“, į rotaciją pridėk:
+
+/adsset konkursas promo partneris
+
+REKOMENDACIJA
+Pradžiai naudok 20–30 min. intervalą, o ne labai dažną siuntimą.
