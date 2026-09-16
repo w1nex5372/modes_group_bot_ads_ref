@@ -1,0 +1,20 @@
+ROSE NOTE PAVADINIMAS: promo
+
+👑 NĖRA DROPO · INVITE SISTEMA
+
+Kaip rinkti taškus?
+
+🔗 1. Bote pasiimk „Mano invite“ ir dalinkis
+➕ 2. Arba pridėk žmogų tiesiai į grupę per Add Members
+⭐ 3. Kiekvienas naujas narys = +1 taškas
+
+🏆 Savaitės TOP matomas live
+🔄 Pirmadienį savaitės taškai prasideda nuo 0
+⚠️ Tas pats žmogus užskaitomas vieną kartą
+
+[🤖 ATIDARYTI BOTĄ](buttonurl://https://t.me/TAVO_BOTO_USERNAME?start=invite)
+[🚀 ATIDARYTI GRUPĘ](buttonurl://https://t.me/NERADAUDROPO:same)
+
+PASTABA:
+Custom emoji į šitą tekstą gali susidėti ranka prieš /save promo.
+Jei nori automatinio teksto su tikrais linkais, bote naudok /promoad.
