@@ -1,0 +1,58 @@
+ROSE ADS GREITAS PALEIDIMAS
+
+1. Rose grupėje susikurk kelis saved notes, pvz.:
+
+ads
+konkursas
+promo
+
+2. Paleisk visą sistemą su:
+
+start.bat
+
+3. Savo referral botui parašyk:
+
+/adsset ads konkursas promo
+
+4. Pasirink intervalą:
+
+/adsinterval 10
+
+5. Įjunk:
+
+/adson
+
+6. Patikrinti:
+
+/ads
+
+7. Kitas ADS iškart:
+
+/adsnext
+
+8. Sustabdyti:
+
+/adsoff
+
+
+PAVYZDYS
+
+Jei nustatyta:
+
+/adsset ads konkursas promo
+/adsinterval 10
+
+gaunasi:
+
+00:00 ads
+00:10 konkursas
+00:20 promo
+00:30 ads
+00:40 konkursas
+00:50 promo
+
+Intervalą gali pakeisti bet kada, pvz.:
+
+/adsinterval 30
+
+Skripto restartinti nereikia.
