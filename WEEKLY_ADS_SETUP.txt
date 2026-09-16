@@ -1,41 +1,62 @@
 SAVAITĖS ADS PALEIDIMAS
 
-Tikslas: sukti 2 Rose reklamas:
-1) konkursas
-2) promo
+Dabartinė logika:
+
+FAST eilė:
+- konkursas
+- promo
+
+Kas 15 min. paleidžiamas VIENAS FAST note pakaitomis:
+
+00:00 konkursas
+00:15 promo
+00:30 konkursas
+00:45 promo
+01:00 konkursas
+...
+
+NORMAL eilė:
+- visi kiti note vardai, kuriuos įrašai per /adsset
+- jų intervalą valdo /adsinterval
+
+Pvz.:
+
+/adsset konkursas promo partneris naujiena
+/adsinterval 30
+/adson
+
+Tada:
+- konkursas/promo sukasi FAST eilėje kas 15 min.
+- partneris/naujiena sukasi NORMAL eilėje kas 30 min.
+
+Jei FAST ir NORMAL laikas sutampa, sistema tarp postų palieka apsauginį tarpą,
+kad du reklaminiai postai neatsirastų tuo pačiu momentu.
 
 ==================================================
 1. KONKURSO ADS
 ==================================================
 
-Savo referral/konkurso bote parašyk:
+Savo referral bote:
 
 /contestad
 
-Botas sugeneruos tekstą su tikru tavo boto linku.
-Tą tekstą įkelk į grupę ir išsaugok Rose kaip note:
+Gautą tekstą išsaugok Rose note vardu:
 
 konkursas
-
-Paprasčiausias būdas:
-- įkelk paruoštą postą;
-- Reply į tą postą;
-- parašyk /save konkursas
 
 Patikrink:
 
 /get konkursas
 
 ==================================================
-2. BENDRAS GRUPĖS PROMO ADS
+2. PROMO ADS
 ==================================================
 
-Savo bote parašyk:
+Savo referral bote:
 
 /promoad
 
-Botas sugeneruos bendrą grupės promo tekstą su grupės ir boto mygtukais.
-Tą postą išsaugok Rose kaip:
+Gautą tekstą išsaugok Rose note vardu:
 
 promo
 
@@ -44,42 +65,53 @@ Patikrink:
 /get promo
 
 ==================================================
-3. PALEISTI ROTACIJĄ
+3. PALEISTI
 ==================================================
 
-Savo referral boto admin valdyme:
+Jei kol kas turi tik šiuos du:
 
 /adsset konkursas promo
 /adsinterval 30
 /adson
 
-Testui iš karto:
+Testui iškart:
 
 /adsnext
 
-Statusas:
+PASTABA:
+/adsinterval 30 čia valdo tik NORMAL eilę.
+FAST konkursas/promo intervalas paimamas iš .env:
+
+ROSE_FAST_INTERVAL_MINUTES=15
+
+==================================================
+4. KAIP PATIKRINTI, AR TIKRAI VEIKIA
+==================================================
+
+Paleisk visą sistemą:
+
+start.bat
+
+Terminale sėkmingas Rose atsakymas atrodys taip:
+
+Rose ADS ✅ VERIFIED | FAST | note=konkursas
+
+arba:
+
+Rose ADS ✅ VERIFIED | NORMAL | note=partneris
+
+Papildomai kitame PowerShell lange paleisk:
+
+run_ads_status.bat
+
+Jis parodys:
+- ar ADS įjungtas;
+- kokie note yra rotacijoje;
+- paskutinį note;
+- kada išsiųstas;
+- ar Rose atsakymas buvo realiai aptiktas;
+- paskutinę klaidą, jei buvo.
+
+Statusą bote irgi gali matyti su:
 
 /ads
-
-Sustabdyti:
-
-/adsoff
-
-Jei intervalas 30 min., eis:
-
-00:00 konkursas
-00:30 promo
-01:00 konkursas
-01:30 promo
-...
-
-Jei nori 20 min.:
-
-/adsinterval 20
-
-Jei vėliau susikursi dar vieną Rose note, pvz. „partneris“, į rotaciją pridėk:
-
-/adsset konkursas promo partneris
-
-REKOMENDACIJA
-Pradžiai naudok 20–30 min. intervalą, o ne labai dažną siuntimą.
