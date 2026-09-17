@@ -19,7 +19,7 @@ def start(name, script):
 
 def bot_process():
     if THEME in {"prada", "prada_lux", "prada-lux"}:
-        return ("PRADA LUX botas", "prada_ui.py")
+        return ("PRADA LUX botas", "prada_safe.py")
     return ("NERA DROPO botas", "live_ui.py")
 
 
