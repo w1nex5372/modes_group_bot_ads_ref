@@ -6,7 +6,22 @@ callback actions and target URLs are preserved.
 
 import branded_bot as bb
 import referral_bot as rb
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+
+# Rose or another moderation bot may delete commands immediately after they are
+# sent. python-telegram-bot quotes replies by default in group chats, which can
+# then fail with "Message to be replied not found". Keep every bot response in
+# the same chat/topic, but don't quote the command message.
+_original_reply_text = Message.reply_text
+
+
+async def _reply_text_without_quote(self, *args, **kwargs):
+    kwargs.setdefault("do_quote", False)
+    return await _original_reply_text(self, *args, **kwargs)
+
+
+Message.reply_text = _reply_text_without_quote
 
 
 def icon_id(key):
