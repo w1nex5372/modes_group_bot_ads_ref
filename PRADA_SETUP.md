@@ -41,30 +41,44 @@ SESSION_NAME=prada_autoforward
 
 Taip Prada grupės DB ir Telegram session nesimaišys su NERA DROPO.
 
-## 3. Custom emoji
+## 3. Sugeneruok Prada assetus
 
-Assetai:
+Vienu paspaudimu:
 
-```text
-assets/emoji_prada/brand.webp
-assets/emoji_prada/crown.webp
-assets/emoji_prada/invite.webp
-assets/emoji_prada/share.webp
-assets/emoji_prada/trophy.webp
-assets/emoji_prada/group.webp
-assets/emoji_prada/add.webp
-assets/emoji_prada/stats.webp
+```powershell
+.\generate_prada_assets.bat
 ```
 
-Paleisk:
+Bus sugeneruoti originalūs black / ivory / silver community assetai:
+
+```text
+assets/prada/prada_lux_profile.webp
+assets/prada_ads/contest.webp
+assets/prada_ads/promo.webp
+assets/emoji_prada/*.webp
+```
+
+## 4. Custom emoji pack
+
+`setup_prada_emoji.bat` pats dar kartą patikrina/sugeneruoja assetus ir tada sukuria Telegram custom emoji pack:
 
 ```powershell
 .\setup_prada_emoji.bat
 ```
 
-Bus sukurtas `emoji_ids_prada.json`.
+Bus sukurtas:
 
-## 4. Profilio paveikslas
+```text
+emoji_ids_prada.json
+```
+
+Emoji mapping:
+
+```text
+brand · crown · invite · share · trophy · group · add · stats
+```
+
+## 5. Profilio paveikslas
 
 Naudok:
 
@@ -74,7 +88,7 @@ assets/prada/prada_lux_profile.webp
 
 Tai originalus PRADA LUX community avataras, ne oficialus Prada logotipas.
 
-## 5. ADS vizualai
+## 6. ADS vizualai
 
 ```text
 assets/prada_ads/contest.webp
@@ -102,7 +116,7 @@ Patikrink:
 /get promo
 ```
 
-## 6. Paleidimas
+## 7. Paleidimas
 
 ```powershell
 .\start.bat
@@ -116,7 +130,7 @@ BRAND_THEME=prada
 
 ir paleis `prada_ui.py` vietoje NERA DROPO `live_ui.py`.
 
-## 7. Auto ADS
+## 8. Auto ADS
 
 Po vieną komandą:
 
@@ -127,7 +141,7 @@ Po vieną komandą:
 /adsnext
 ```
 
-## 8. Greitas UI testas
+## 9. Greitas UI testas
 
 ```text
 /start
@@ -140,6 +154,14 @@ Po vieną komandą:
 ```
 
 Jei visur matai `PRADA LUX`, custom black/ivory emoji ir naujus mygtukus — theme aktyvi.
+
+## Copy pack
+
+Visi grupės, kanalo, boto ir pinned tekstai yra:
+
+```text
+PRADA_COPY.md
+```
 
 ## Svarbu
 
