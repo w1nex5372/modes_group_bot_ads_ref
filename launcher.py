@@ -3,8 +3,13 @@ import subprocess
 import sys
 import time
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
+THEME = os.getenv("BRAND_THEME", "nera_dropo").strip().lower()
 
 
 def start(name, script):
@@ -12,12 +17,19 @@ def start(name, script):
     return subprocess.Popen([PY, os.path.join(ROOT, script)], cwd=ROOT)
 
 
+def bot_process():
+    if THEME in {"prada", "prada_lux", "prada-lux"}:
+        return ("PRADA LUX botas", "prada_ui.py")
+    return ("NERA DROPO botas", "live_ui.py")
+
+
 def main():
     procs = [
-        ("NERA DROPO botas", "live_ui.py"),
+        bot_process(),
         ("Auto forwarderis / Rose ADS", "forwarder.py"),
     ]
 
+    print(f"Brand theme: {THEME}")
     running = [start(name, script) for name, script in procs]
 
     try:
