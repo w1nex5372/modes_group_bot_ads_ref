@@ -14,15 +14,18 @@ ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.
 ASSETS = Path(os.getenv("ASSETS_DIR", "assets")) / "emoji_prada"
 OUTPUT = Path(os.getenv("EMOJI_IDS_FILE", "emoji_ids_prada.json"))
 
+# Telegram requires every InputSticker emoji_list item to be a real Unicode emoji.
+# Keep the visual design in the WEBP files; these are only valid fallback emojis
+# used by Telegram while creating the custom-emoji sticker set.
 ITEMS = [
-    ("brand", "brand.webp", "◆", ["prada", "luxury", "brand"]),
-    ("crown", "crown.webp", "◇", ["luxury", "diamond", "milan"]),
+    ("brand", "brand.webp", "🖤", ["prada", "luxury", "brand"]),
+    ("crown", "crown.webp", "💎", ["luxury", "diamond", "milan"]),
     ("invite", "invite.webp", "🔗", ["invite", "link"]),
-    ("share", "share.webp", "↗️", ["share", "send"]),
+    ("share", "share.webp", "📤", ["share", "send"]),
     ("trophy", "trophy.webp", "🏆", ["top", "winner"]),
-    ("group", "group.webp", "♟", ["group", "community"]),
-    ("add", "add.webp", "＋", ["add", "member"]),
-    ("stats", "stats.webp", "▥", ["stats", "growth"]),
+    ("group", "group.webp", "👥", ["group", "community"]),
+    ("add", "add.webp", "➕", ["add", "member"]),
+    ("stats", "stats.webp", "📈", ["stats", "growth"]),
 ]
 
 
@@ -45,7 +48,7 @@ async def main():
             for key, filename, fallback, keywords in ITEMS:
                 path = ASSETS / filename
                 if not path.exists():
-                    raise SystemExit(f"Nerastas {path}. Padaryk git pull.")
+                    raise SystemExit(f"Nerastas {path}. Paleisk generate_prada_assets.bat.")
                 stickers.append(
                     InputSticker(
                         sticker=path.read_bytes(),
