@@ -3,3 +3,4 @@ telethon>=1.40,<2
 python-dotenv>=1.1,<2
 tzdata>=2025.2
 qrcode[pil]>=8.2,<9
+Pillow>=10,<12
