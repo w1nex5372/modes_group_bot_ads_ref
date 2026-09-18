@@ -14,6 +14,7 @@ import argparse
 import asyncio
 import json
 import os
+import sqlite3
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -30,11 +31,36 @@ CHANNEL_CHAT = os.getenv("CHANNEL_CHAT", "").strip()
 GROUP_PUBLIC_URL = os.getenv("GROUP_PUBLIC_URL", "").strip()
 ASSETS_DIR = Path(os.getenv("ASSETS_DIR", "assets"))
 EMOJI_IDS_FILE = Path(os.getenv("EMOJI_IDS_FILE", "emoji_ids_prada.json"))
+DB_PATH = Path(os.getenv("DB_PATH", "prada_referrals.sqlite3"))
 
 if not CHANNEL_CHAT:
     raise SystemExit("❌ .env įrašyk CHANNEL_CHAT=@TAVO_KANALAS arba kanalo -100... ID")
 if not GROUP_PUBLIC_URL:
     raise SystemExit("❌ .env įrašyk GROUP_PUBLIC_URL (public @group link arba private invite link).")
+
+
+def db_setting(key: str, default: str = ""):
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+            return row[0] if row else default
+    except Exception:
+        return default
+
+
+def channel_label(key: str, default: str):
+    value = str(db_setting(f"prada_ui_button_{key}", "") or "").strip()
+    return value or default
+
+
+def channel_icon(key: str, fallback_pack_key: str, custom: bool = True):
+    if not custom:
+        return None
+    override = str(db_setting(f"prada_ui_icon_{key}", "") or "").strip()
+    if override:
+        return override
+    value = str(IDS.get(fallback_pack_key, "")).strip()
+    return value or None
 
 
 def emoji_ids():
@@ -50,12 +76,11 @@ def emoji_ids():
 IDS = emoji_ids()
 
 
-def button(text: str, url: str, key: str | None = None, custom: bool = True):
-    icon = str(IDS.get(key, "")).strip() if key and custom else ""
+def button(text: str, url: str, *, setting_key: str, fallback_pack_key: str, custom: bool = True):
     return InlineKeyboardButton(
         text=text,
         url=url,
-        icon_custom_emoji_id=icon or None,
+        icon_custom_emoji_id=channel_icon(setting_key, fallback_pack_key, custom),
     )
 
 
@@ -63,8 +88,20 @@ def keyboard(bot_url: str, custom: bool = True):
     return InlineKeyboardMarkup(
         [
             [
-                button("◆ GRUPĖ", GROUP_PUBLIC_URL, "group", custom),
-                button("✦ MANO INVITE", bot_url, "invite", custom),
+                button(
+                    channel_label("channel_group", "GRUPĖ"),
+                    GROUP_PUBLIC_URL,
+                    setting_key="channel_group",
+                    fallback_pack_key="group",
+                    custom=custom,
+                ),
+                button(
+                    channel_label("channel_invite", "MANO INVITE"),
+                    bot_url,
+                    setting_key="channel_invite",
+                    fallback_pack_key="invite",
+                    custom=custom,
+                ),
             ],
         ]
     )
@@ -121,7 +158,7 @@ async def send_one(bot: Bot, kind: str, pin: bool):
         # Some bots/accounts may not be eligible for custom emoji icons on buttons.
         if "emoji" not in str(exc).lower():
             raise
-        print("⚠️ Telegram custom emoji iconų nepriėmė — palieku ◆ / ✦ simbolius buttonuose.")
+        print("⚠️ Telegram custom emoji iconų nepriėmė — siunčiu tuos pačius button tekstus be custom ikonų.")
         kwargs["reply_markup"] = keyboard(bot_url, custom=False)
         msg = await bot.send_photo(**kwargs)
 
