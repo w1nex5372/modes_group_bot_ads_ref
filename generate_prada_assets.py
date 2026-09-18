@@ -198,47 +198,40 @@ def poster(title, subtitle, bullets, filename, cta=None):
     W, H = 1080, 1350
     im = Image.new("RGB", (W, H), (7, 7, 7))
     d = ImageDraw.Draw(im)
-    d.rectangle((40, 40, W - 40, H - 40), outline=(150, 150, 150), width=2)
+    d.rectangle((40, 40, W - 40, H - 40), outline=(120, 120, 120), width=2)
     d.rectangle((40, 40, 360, 46), fill=GREEN)
     d.rectangle((360, 40, 720, 46), fill=(235, 235, 228))
     d.rectangle((720, 40, W - 40, 46), fill=RED)
 
-    fb = serif(72)
+    fb = serif(70)
     brand = "PRADA LUX"
     box = d.textbbox((0, 0), brand, font=fb)
-    d.text(((W - (box[2] - box[0])) / 2, 90), brand, font=fb, fill=(238, 234, 226))
+    d.text(((W - (box[2] - box[0])) / 2, 92), brand, font=fb, fill=(238, 234, 226))
 
-    fs = sans(26)
+    fs = sans(24)
     tag = "MILANO MOOD · UNOFFICIAL COMMUNITY"
     box = d.textbbox((0, 0), tag, font=fs)
-    d.text(((W - (box[2] - box[0])) / 2, 185), tag, font=fs, fill=(160, 160, 160))
+    d.text(((W - (box[2] - box[0])) / 2, 184), tag, font=fs, fill=(145, 145, 145))
 
     ft = fit_text(d, title, W - 160, 62, "bold")
-    d.text((80, 290), title, font=ft, fill=(245, 245, 240))
-    fsub = fit_text(d, subtitle, W - 160, 36, "sans")
-    d.text((80, 380), subtitle, font=fsub, fill=(190, 190, 190))
+    d.text((80, 300), title, font=ft, fill=(245, 245, 240))
+    fsub = fit_text(d, subtitle, W - 160, 32, "sans")
+    d.text((80, 390), subtitle, font=fsub, fill=(180, 180, 180))
 
-    y = 500
+    y = 520
     fline = sans(34)
     for number, line in bullets:
-        d.text((90, y), number, font=sans_bold(40), fill=(230, 230, 225))
-        yy = y + 3
+        d.text((90, y), number, font=sans_bold(38), fill=(230, 230, 225))
+        yy = y + 2
         for row in wrap(d, line, fline, 800):
-            d.text((160, yy), row, font=fline, fill=(230, 230, 225))
-            yy += 48
-        y = max(y + 100, yy + 30)
+            d.text((160, yy), row, font=fline, fill=(225, 225, 220))
+            yy += 46
+        y = max(y + 100, yy + 28)
 
-    if cta:
-        d.rounded_rectangle((140, H - 250, W - 140, H - 130), radius=18, outline=(215, 215, 210), width=3)
-        fcta = fit_text(d, cta, W - 340, 48, "bold")
-        box = d.textbbox((0, 0), cta, font=fcta)
-        d.text(((W - (box[2] - box[0])) / 2, H - 220), cta, font=fcta, fill=(245, 245, 240))
-
-    # Quiet editorial footer instead of a fake in-image Telegram button.
     footer = "MILANO · SEMPRE INSIEME"
-    ff = sans(22)
+    ff = sans(21)
     box = d.textbbox((0, 0), footer, font=ff)
-    d.text(((W - (box[2] - box[0])) / 2, H - 90), footer, font=ff, fill=(125, 125, 125))
+    d.text(((W - (box[2] - box[0])) / 2, H - 92), footer, font=ff, fill=(115, 115, 115))
     im.save(ADS_DIR / filename, "WEBP", quality=84, method=6)
 
 
@@ -258,18 +251,55 @@ def generate_contest_poster():
 
 
 def generate_channel_promo():
+    """Compact Telegram-first promo card: image carries branding, caption carries details."""
     ADS_DIR.mkdir(parents=True, exist_ok=True)
-    poster(
-        "PRADA INFO",
-        "Visa svarbiausia informacija vienoje vietoje.",
-        [
-            ("01", "Prisijunk prie pagrindinės grupės"),
-            ("02", "Sek naujienas ir svarbią informaciją"),
-            ("03", "Dalyvauk konkursuose ir savaitės TOP"),
-            ("04", "Visa bendruomenė vienoje vietoje"),
-        ],
-        "promo.webp",
-    )
+    W = H = 1080
+    im = Image.new("RGB", (W, H), (6, 6, 6))
+    d = ImageDraw.Draw(im)
+
+    # Thin premium frame + Italy accent.
+    d.rectangle((48, 48, W - 48, H - 48), outline=(105, 105, 105), width=2)
+    stripe_y = 110
+    stripe_w = 390
+    x0 = (W - stripe_w) // 2
+    third = stripe_w // 3
+    d.rectangle((x0, stripe_y, x0 + third, stripe_y + 7), fill=GREEN)
+    d.rectangle((x0 + third, stripe_y, x0 + 2 * third, stripe_y + 7), fill=(235, 235, 228))
+    d.rectangle((x0 + 2 * third, stripe_y, x0 + stripe_w, stripe_y + 7), fill=RED)
+
+    brand = "PRADA LUX"
+    fb = serif(58)
+    box = d.textbbox((0, 0), brand, font=fb)
+    d.text(((W - (box[2] - box[0])) / 2, 160), brand, font=fb, fill=(235, 232, 224))
+
+    tag = "UNOFFICIAL COMMUNITY · MILANO MOOD"
+    ft = sans(22)
+    box = d.textbbox((0, 0), tag, font=ft)
+    d.text(((W - (box[2] - box[0])) / 2, 245), tag, font=ft, fill=(130, 130, 130))
+
+    title = "PRADA INFO"
+    ftitle = serif(118)
+    box = d.textbbox((0, 0), title, font=ftitle)
+    d.text(((W - (box[2] - box[0])) / 2, 390), title, font=ftitle, fill=(247, 245, 238))
+
+    # Minimal divider and only one compact line of meaning.
+    d.line((270, 560, 810, 560), fill=(95, 95, 95), width=2)
+    subtitle = "NAUJIENOS · KONKURSAI · TOP"
+    fsub = sans_bold(31)
+    box = d.textbbox((0, 0), subtitle, font=fsub)
+    d.text(((W - (box[2] - box[0])) / 2, 610), subtitle, font=fsub, fill=(205, 205, 200))
+
+    note = "Visa svarbiausia informacija vienoje vietoje"
+    fn = sans(27)
+    box = d.textbbox((0, 0), note, font=fn)
+    d.text(((W - (box[2] - box[0])) / 2, 690), note, font=fn, fill=(155, 155, 155))
+
+    footer = "MILANO · SEMPRE INSIEME"
+    ff = sans(20)
+    box = d.textbbox((0, 0), footer, font=ff)
+    d.text(((W - (box[2] - box[0])) / 2, 930), footer, font=ff, fill=(105, 105, 105))
+
+    im.save(ADS_DIR / "promo.webp", "WEBP", quality=86, method=6)
 
 
 def main():
