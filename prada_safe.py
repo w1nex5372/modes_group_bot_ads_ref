@@ -458,7 +458,6 @@ async def on_button(update, context):
             return
         rb.set_setting(f"prada_ui_icon_{key}", "")
         context.user_data.pop("prada_ui_edit", None)
-        await q.answer("Custom emoji nuimtas")
         await q.edit_message_text(
             f"<b>{rb.esc(button_label(key))}</b>\n\nCustom emoji nuimtas. Bus naudojama default pack ikona.",
             parse_mode="HTML",
