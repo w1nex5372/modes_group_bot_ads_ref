@@ -62,8 +62,10 @@ def button(text: str, url: str, key: str | None = None, custom: bool = True):
 def keyboard(bot_url: str, custom: bool = True):
     return InlineKeyboardMarkup(
         [
-            [button("◆ PRISIJUNGTI PRIE GRUPĖS", GROUP_PUBLIC_URL, "group", custom)],
-            [button("✦ GAUTI MANO INVITE", bot_url, "invite", custom)],
+            [
+                button("◆ GRUPĖ", GROUP_PUBLIC_URL, "group", custom),
+                button("✦ MANO INVITE", bot_url, "invite", custom),
+            ],
         ]
     )
 
@@ -85,10 +87,9 @@ def post_data(kind: str):
     return (
         ASSETS_DIR / "prada_ads" / "promo.webp",
         (
-            "<b>PRADA INFO</b>\n\n"
-            "Visa svarbiausia bendruomenės informacija vienoje vietoje.\n\n"
+            "<b>PRADA INFO</b>\n"
             "Naujienos · Konkursai · Savaitės TOP\n\n"
-            "Prisijunk prie pagrindinės bendruomenės žemiau.\n\n"
+            "Prisijunk prie bendruomenės ↓\n\n"
             "<i>Neoficiali bendruomenė · nesusijusi su Prada S.p.A.</i>"
         ),
     )
