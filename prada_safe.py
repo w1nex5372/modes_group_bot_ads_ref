@@ -498,10 +498,18 @@ async def on_button(update, context):
             return
         context.user_data.pop("prada_ui_edit", None)
         icon_state = "asmeninis" if str(setting(f"prada_ui_icon_{key}", "") or "").strip() else "default"
+        channel_note = ""
+        if key.startswith("channel_"):
+            channel_note = (
+                "\n\n<i>Pastaba: Telegram leidžia custom emoji ikoną botų CHANNEL mygtukuose "
+                "tik botams su papildomu username, įsigytu per Fragment. "
+                "Premium savininkas vienas pats užtenka private/group/supergroup, bet ne channel.</i>"
+            )
         await q.edit_message_text(
             f"<b>{rb.esc(button_label(key))}</b>\n\n"
             f"Custom emoji: <b>{icon_state}</b>\n"
-            "Pasirink ką keisti:",
+            "Pasirink ką keisti:"
+            f"{channel_note}",
             parse_mode="HTML",
             reply_markup=ui_button_edit_menu(key),
         )
