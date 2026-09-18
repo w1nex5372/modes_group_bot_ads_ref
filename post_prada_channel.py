@@ -21,6 +21,8 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
 
+from generate_prada_assets import generate_channel_promo, generate_contest_poster
+
 load_dotenv()
 
 BOT_TOKEN = os.environ["BOT_TOKEN"].strip()
@@ -60,8 +62,8 @@ def button(text: str, url: str, key: str | None = None, custom: bool = True):
 def keyboard(bot_url: str, custom: bool = True):
     return InlineKeyboardMarkup(
         [
-            [button("PRISIJUNGTI PRIE GRUPĖS", GROUP_PUBLIC_URL, "group", custom)],
-            [button("GAUTI MANO INVITE", bot_url, "invite", custom)],
+            [button("◆ PRISIJUNGTI PRIE GRUPĖS", GROUP_PUBLIC_URL, "group", custom)],
+            [button("✦ GAUTI MANO INVITE", bot_url, "invite", custom)],
         ]
     )
 
@@ -71,8 +73,8 @@ def post_data(kind: str):
         return (
             ASSETS_DIR / "prada_ads" / "contest.webp",
             (
-                "<b>PRADA LUX · SAVAITĖS INVITE TOP</b>\n\n"
-                "Pakviesk bendruomenės narius ir rink taškus.\n\n"
+                "<b>SAVAITĖS INVITE TOP</b>\n\n"
+                "Kviesk bendruomenės narius ir rink taškus.\n\n"
                 "🔗 Naujas narys per tavo invite → <b>+1</b>\n"
                 "➕ Add Members → <b>+1</b>\n"
                 "🏆 TOP atsinaujina automatiškai\n"
@@ -83,16 +85,22 @@ def post_data(kind: str):
     return (
         ASSETS_DIR / "prada_ads" / "promo.webp",
         (
-            "<b>PRADA LUX COMMUNITY</b>\n\n"
-            "Bendruomenė, pokalbiai, naujienos ir savaitės TOP.\n"
-            "Visa svarbiausia informacija vienoje vietoje.\n\n"
-            "Prisijunk prie pagrindinės grupės arba pasiimk savo invite.\n\n"
+            "<b>PRADA INFO</b>\n\n"
+            "Visa svarbiausia bendruomenės informacija vienoje vietoje.\n\n"
+            "Naujienos · Konkursai · Savaitės TOP\n\n"
+            "Prisijunk prie pagrindinės bendruomenės žemiau.\n\n"
             "<i>Neoficiali bendruomenė · nesusijusi su Prada S.p.A.</i>"
         ),
     )
 
 
 async def send_one(bot: Bot, kind: str, pin: bool):
+    # Always rebuild the poster from repo code so git pull is enough to update visuals.
+    if kind == "contest":
+        generate_contest_poster()
+    else:
+        generate_channel_promo()
+
     me = await bot.get_me()
     bot_url = f"https://t.me/{me.username}?start=invite"
     image, caption = post_data(kind)
@@ -112,6 +120,7 @@ async def send_one(bot: Bot, kind: str, pin: bool):
         # Some bots/accounts may not be eligible for custom emoji icons on buttons.
         if "emoji" not in str(exc).lower():
             raise
+        print("⚠️ Telegram custom emoji iconų nepriėmė — palieku ◆ / ✦ simbolius buttonuose.")
         kwargs["reply_markup"] = keyboard(bot_url, custom=False)
         msg = await bot.send_photo(**kwargs)
 
