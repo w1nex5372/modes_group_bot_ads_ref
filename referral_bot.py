@@ -38,7 +38,7 @@ GROUP_CHAT_RAW = os.getenv("GROUP", os.getenv("GROUP_CHAT", "@NERADAUDROPO")).st
 def parse_chat_ref(value: str):
     """Telegram Bot API expects private/supergroup numeric chat IDs as integers."""
     value = str(value).strip()
-    if re.fullmatch(r"-?\\d+", value):
+    if re.fullmatch(r"-?\d+", value):
         return int(value)
     return value
 
