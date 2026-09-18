@@ -34,6 +34,15 @@ load_dotenv()
 
 BOT_TOKEN = os.environ["BOT_TOKEN"].strip()
 GROUP_CHAT_RAW = os.getenv("GROUP", os.getenv("GROUP_CHAT", "@NERADAUDROPO")).strip()
+
+def parse_chat_ref(value: str):
+    """Telegram Bot API expects private/supergroup numeric chat IDs as integers."""
+    value = str(value).strip()
+    if re.fullmatch(r"-?\\d+", value):
+        return int(value)
+    return value
+
+GROUP_CHAT = parse_chat_ref(GROUP_CHAT_RAW)
 GROUP_PUBLIC_URL = os.getenv("GROUP_PUBLIC_URL", "").strip()
 if not GROUP_PUBLIC_URL and GROUP_CHAT_RAW.startswith("@"):
     GROUP_PUBLIC_URL = "https://t.me/" + GROUP_CHAT_RAW[1:]
@@ -438,7 +447,7 @@ def live_top_text(excluded=None):
 
 async def ensure_group(context: ContextTypes.DEFAULT_TYPE):
     if "group_id" not in context.application.bot_data:
-        chat = await context.bot.get_chat(GROUP_CHAT_RAW)
+        chat = await context.bot.get_chat(GROUP_CHAT)
         context.application.bot_data["group_id"] = chat.id
         context.application.bot_data["group_title"] = chat.title or str(chat.id)
     return context.application.bot_data["group_id"]
@@ -1078,7 +1087,7 @@ async def set_command_menus(application: Application):
 
 
 async def post_init(application: Application):
-    chat = await application.bot.get_chat(GROUP_CHAT_RAW)
+    chat = await application.bot.get_chat(GROUP_CHAT)
     me = await application.bot.get_me()
     application.bot_data["group_id"] = chat.id
     application.bot_data["group_title"] = chat.title or "NĖRA DROPO"
