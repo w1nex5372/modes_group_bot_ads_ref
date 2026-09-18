@@ -54,7 +54,20 @@ def safe_icon_id(key):
 
 
 p.icon_id = safe_icon_id
-rb.EMOJI_IDS = {}
+
+# Custom emoji entities in message text must wrap the exact Unicode fallback
+# used when the custom-emoji sticker was created. Using decorative symbols
+# like ◆/◇ here makes Telegram reject the entity as Entity_text_invalid.
+rb.FALLBACK_EMOJI.update({
+    "brand": "🖤",
+    "crown": "💎",
+    "invite": "🔗",
+    "share": "📤",
+    "trophy": "🏆",
+    "group": "👥",
+    "add": "➕",
+    "stats": "📈",
+})
 
 
 def setting(key, default=""):
@@ -88,6 +101,9 @@ def dynamic_button(key, *, fallback_icon=None, text=None, **kwargs):
 
 
 def dynamic_home_text():
+    custom_html = str(setting("prada_ui_home_html", "") or "").strip()
+    if custom_html:
+        return custom_html
     custom = str(setting("prada_ui_home_text", "") or "").strip()
     if custom:
         return rb.esc(custom)
@@ -219,18 +235,22 @@ async def sethome_cmd(update, context):
         return
     reply = getattr(update.effective_message, "reply_to_message", None)
     value = None
+    value_html = None
     if reply:
         value = reply.text or reply.caption
+        value_html = reply.text_html or reply.caption_html
     elif context.args:
         value = " ".join(context.args).replace("\\n", "\n")
+        value_html = rb.esc(value)
     if not value:
         context.user_data["prada_ui_edit"] = "home"
         await update.effective_message.reply_text(
-            "Atsiųsk naują /start tekstą viena žinute. Jis bus išsaugotas DB."
+            "Atsiųsk naują /start tekstą viena žinute. Premium custom emoji bus išsaugoti kartu su tekstu."
         )
         return
     rb.set_setting("prada_ui_home_text", value[:4000])
-    await update.effective_message.reply_text("✅ /start tekstas išsaugotas DB.")
+    rb.set_setting("prada_ui_home_html", (value_html or rb.esc(value))[:8000])
+    await update.effective_message.reply_text("✅ /start tekstas + custom emoji išsaugoti DB.")
 
 
 async def setbtn_cmd(update, context):
@@ -292,6 +312,7 @@ async def resetui_cmd(update, context):
     if not await rb.require_admin(update, context):
         return
     rb.set_setting("prada_ui_home_text", "")
+    rb.set_setting("prada_ui_home_html", "")
     for key in BUTTON_KEYS:
         rb.set_setting(f"prada_ui_button_{key}", "")
         rb.set_setting(f"prada_ui_icon_{key}", "")
@@ -316,9 +337,11 @@ async def ui_text_input(update, context):
         return
 
     if pending == "home":
+        html_value = update.effective_message.text_html or rb.esc(text)
         rb.set_setting("prada_ui_home_text", text[:4000])
+        rb.set_setting("prada_ui_home_html", html_value[:8000])
         context.user_data.pop("prada_ui_edit", None)
-        await update.effective_message.reply_text("✅ /start tekstas išsaugotas DB.\n\nNaujas preview:")
+        await update.effective_message.reply_text("✅ /start tekstas + custom emoji išsaugoti DB.\n\nNaujas preview:")
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=dynamic_home_text(),
@@ -486,6 +509,7 @@ async def on_button(update, context):
 
     if data == "ui_reset":
         rb.set_setting("prada_ui_home_text", "")
+    rb.set_setting("prada_ui_home_html", "")
         for key in BUTTON_KEYS:
             rb.set_setting(f"prada_ui_button_{key}", "")
             rb.set_setting(f"prada_ui_icon_{key}", "")
