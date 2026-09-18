@@ -194,7 +194,7 @@ def wrap(draw, text, font_obj, width):
     return lines
 
 
-def poster(title, subtitle, bullets, cta, filename):
+def poster(title, subtitle, bullets, filename, cta=None):
     W, H = 1080, 1350
     im = Image.new("RGB", (W, H), (7, 7, 7))
     d = ImageDraw.Draw(im)
@@ -228,11 +228,48 @@ def poster(title, subtitle, bullets, cta, filename):
             yy += 48
         y = max(y + 100, yy + 30)
 
-    d.rounded_rectangle((140, H - 250, W - 140, H - 130), radius=18, outline=(215, 215, 210), width=3)
-    fcta = fit_text(d, cta, W - 340, 48, "bold")
-    box = d.textbbox((0, 0), cta, font=fcta)
-    d.text(((W - (box[2] - box[0])) / 2, H - 220), cta, font=fcta, fill=(245, 245, 240))
-    im.save(ADS_DIR / filename, "WEBP", quality=82, method=6)
+    if cta:
+        d.rounded_rectangle((140, H - 250, W - 140, H - 130), radius=18, outline=(215, 215, 210), width=3)
+        fcta = fit_text(d, cta, W - 340, 48, "bold")
+        box = d.textbbox((0, 0), cta, font=fcta)
+        d.text(((W - (box[2] - box[0])) / 2, H - 220), cta, font=fcta, fill=(245, 245, 240))
+
+    # Quiet editorial footer instead of a fake in-image Telegram button.
+    footer = "MILANO · SEMPRE INSIEME"
+    ff = sans(22)
+    box = d.textbbox((0, 0), footer, font=ff)
+    d.text(((W - (box[2] - box[0])) / 2, H - 90), footer, font=ff, fill=(125, 125, 125))
+    im.save(ADS_DIR / filename, "WEBP", quality=84, method=6)
+
+
+def generate_contest_poster():
+    ADS_DIR.mkdir(parents=True, exist_ok=True)
+    poster(
+        "SAVAITĖS INVITE TOP",
+        "Kviesk bendruomenės narius ir kilk savaitės TOP.",
+        [
+            ("01", "Asmeninė invite nuoroda = +1 naujas narys"),
+            ("02", "Add Members = +1 naujas narys"),
+            ("03", "Savaitės TOP atsinaujina automatiškai"),
+            ("04", "Nauja savaitė prasideda pirmadienį 00:00"),
+        ],
+        "contest.webp",
+    )
+
+
+def generate_channel_promo():
+    ADS_DIR.mkdir(parents=True, exist_ok=True)
+    poster(
+        "PRADA INFO",
+        "Visa svarbiausia informacija vienoje vietoje.",
+        [
+            ("01", "Prisijunk prie pagrindinės grupės"),
+            ("02", "Sek naujienas ir svarbią informaciją"),
+            ("03", "Dalyvauk konkursuose ir savaitės TOP"),
+            ("04", "Visa bendruomenė vienoje vietoje"),
+        ],
+        "promo.webp",
+    )
 
 
 def main():
@@ -253,30 +290,8 @@ def main():
         save_emoji(name, fn)
 
     create_profile()
-    poster(
-        "WEEKLY INVITE CLUB",
-        "Pakviesk luxury / fashion bendraminčius ir kilk į TOP.",
-        [
-            ("01", "Asmeninė invite nuoroda = +1 naujas narys"),
-            ("02", "Add Members = +1 naujas narys"),
-            ("03", "Savaitės TOP atsinaujina automatiškai"),
-            ("04", "Nauja savaitė prasideda pirmadienį 00:00"),
-        ],
-        "GAUTI MANO INVITE",
-        "contest.webp",
-    )
-    poster(
-        "PRADA LUX COMMUNITY",
-        "Atrinkta estetika. Fashion. Luxury. Bendruomenė.",
-        [
-            ("01", "Prisijunk prie pagrindinės grupės"),
-            ("02", "Sek naujienas, konkursus ir TOP"),
-            ("03", "Kviesk bendraminčius ir rink taškus"),
-            ("04", "Visa svarbiausia informacija vienoje vietoje"),
-        ],
-        "PRISIJUNGTI",
-        "promo.webp",
-    )
+    generate_contest_poster()
+    generate_channel_promo()
 
     print("✅ Prada luxury community assetai sugeneruoti:")
     print(f"  {PROFILE_DIR / 'prada_lux_profile.webp'}")
