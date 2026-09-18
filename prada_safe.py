@@ -11,7 +11,7 @@ import os
 import prada_ui as p
 import branded_bot as bb
 import referral_bot as rb
-from telegram import BotCommand, BotCommandScopeChatAdministrators, InlineKeyboardMarkup
+from telegram import BotCommand, BotCommandScopeChatAdministrators, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatType
 from telegram.ext import (
     Application,
@@ -40,6 +40,8 @@ BUTTON_DEFAULTS = {
     "open_group": "ATIDARYTI GRUPĘ",
     "live_invite": "GAUTI MANO INVITE",
     "live_group": p.GROUP_LABEL,
+    "channel_group": "GRUPĖ",
+    "channel_invite": "MANO INVITE",
 }
 BUTTON_KEYS = tuple(BUTTON_DEFAULTS)
 
@@ -67,6 +69,24 @@ def button_label(key):
     return value or BUTTON_DEFAULTS[key]
 
 
+def button_icon_id(key, fallback_key=None):
+    """Return a DB-selected custom emoji icon, otherwise the pack default."""
+    if not _USE_BUTTON_CUSTOM:
+        return None
+    custom = str(setting(f"prada_ui_icon_{key}", "") or "").strip()
+    if custom:
+        return custom
+    return safe_icon_id(fallback_key or key)
+
+
+def dynamic_button(key, *, fallback_icon=None, text=None, **kwargs):
+    return InlineKeyboardButton(
+        text=text if text is not None else button_label(key),
+        icon_custom_emoji_id=button_icon_id(key, fallback_icon),
+        **kwargs,
+    )
+
+
 def dynamic_home_text():
     custom = str(setting("prada_ui_home_text", "") or "").strip()
     if custom:
@@ -77,20 +97,20 @@ def dynamic_home_text():
 def dynamic_user_menu(is_admin=False):
     rows = [
         [
-            p.button(button_label("invite"), key="invite", callback_data="my_link"),
-            p.button(button_label("points"), key="trophy", callback_data="points"),
+            dynamic_button("invite", fallback_icon="invite", callback_data="my_link"),
+            dynamic_button("points", fallback_icon="trophy", callback_data="points"),
         ],
         [
-            p.button(button_label("top"), key="trophy", callback_data="top"),
-            p.button(button_label("alltime"), key="stats", callback_data="alltime"),
+            dynamic_button("top", fallback_icon="trophy", callback_data="top"),
+            dynamic_button("alltime", fallback_icon="stats", callback_data="alltime"),
         ],
         [
-            p.button(button_label("lastweek"), key="crown", callback_data="lastweek"),
-            p.button(button_label("info"), key="brand", callback_data="info"),
+            dynamic_button("lastweek", fallback_icon="crown", callback_data="lastweek"),
+            dynamic_button("info", fallback_icon="brand", callback_data="info"),
         ],
     ]
     if is_admin:
-        rows.append([p.button(button_label("admin"), key="crown", callback_data="admin_panel")])
+        rows.append([dynamic_button("admin", fallback_icon="crown", callback_data="admin_panel")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -119,9 +139,9 @@ def dynamic_admin_menu():
 
 
 def dynamic_invite_markup(link):
-    rows = [[p.button(button_label("share"), key="share", url=p.share_url(link))]]
+    rows = [[dynamic_button("share", fallback_icon="share", url=p.share_url(link))]]
     if rb.GROUP_PUBLIC_URL:
-        rows.append([p.button(button_label("open_group"), key="brand", url=rb.GROUP_PUBLIC_URL)])
+        rows.append([dynamic_button("open_group", fallback_icon="brand", url=rb.GROUP_PUBLIC_URL)])
     return InlineKeyboardMarkup(rows)
 
 
@@ -129,9 +149,9 @@ def dynamic_live_markup(application):
     url = rb.bot_url(application, "invite")
     rows = []
     if url:
-        rows.append([p.button(button_label("live_invite"), key="invite", url=url)])
+        rows.append([dynamic_button("live_invite", fallback_icon="invite", url=url)])
     if rb.GROUP_PUBLIC_URL:
-        rows.append([p.button(button_label("live_group"), key="brand", url=rb.GROUP_PUBLIC_URL)])
+        rows.append([dynamic_button("live_group", fallback_icon="brand", url=rb.GROUP_PUBLIC_URL)])
     return InlineKeyboardMarkup(rows) if rows else None
 
 
@@ -159,15 +179,28 @@ def ui_buttons_menu():
         if right:
             row.append(p.button(button_label(right), key="brand", callback_data=f"ui_btn_{right}"))
         rows.append(row)
+    rows.append([
+        p.button(f"CHANNEL: {button_label('channel_group')}", key="group", callback_data="ui_btn_channel_group"),
+        p.button(f"CHANNEL: {button_label('channel_invite')}", key="invite", callback_data="ui_btn_channel_invite"),
+    ])
     rows.append([p.button("ATGAL", key="brand", callback_data="admin_ui")])
     return InlineKeyboardMarkup(rows)
+
+
+def ui_button_edit_menu(key):
+    return InlineKeyboardMarkup([
+        [p.button("KEISTI TEKSTĄ", key="brand", callback_data=f"ui_btntext_{key}")],
+        [p.button("NUSTATYTI CUSTOM EMOJI", key="crown", callback_data=f"ui_btnemoji_{key}")],
+        [p.button("NUIMTI CUSTOM EMOJI", key="brand", callback_data=f"ui_btnclearicon_{key}")],
+        [p.button("ATGAL", key="brand", callback_data="ui_buttons")],
+    ])
 
 
 async def show_ui_editor(update, context, edit=False):
     text = (
         "<b>PRADA LUX · UI REDAKTORIUS</b>\n\n"
         "Pakeitimai saugomi SQLite DB ir lieka po restart.\n"
-        "Gali keisti /start tekstą ir pagrindinių mygtukų pavadinimus."
+        "Gali keisti /start tekstą, mygtukų tekstą ir jų Premium custom emoji ikoną."
     )
     if edit and update.callback_query:
         await update.callback_query.edit_message_text(text, parse_mode="HTML", reply_markup=ui_editor_menu())
@@ -224,12 +257,44 @@ async def setbtn_cmd(update, context):
         pass
 
 
+async def setbtnicon_cmd(update, context):
+    if not await rb.require_admin(update, context):
+        return
+    if not context.args:
+        await update.effective_message.reply_text(
+            "Naudojimas: reply į žinutę su custom emoji → /setbtnicon KEY\n\nKEY: "
+            + ", ".join(BUTTON_KEYS)
+        )
+        return
+    key = context.args[0].lower()
+    if key not in BUTTON_DEFAULTS:
+        await update.effective_message.reply_text("❌ Nežinomas KEY. Galimi: " + ", ".join(BUTTON_KEYS))
+        return
+    reply = getattr(update.effective_message, "reply_to_message", None)
+    entities = list(getattr(reply, "entities", None) or []) if reply else []
+    custom = next(
+        (
+            getattr(entity, "custom_emoji_id", None)
+            for entity in entities
+            if getattr(entity, "type", None) == "custom_emoji"
+            and getattr(entity, "custom_emoji_id", None)
+        ),
+        None,
+    )
+    if not custom:
+        await update.effective_message.reply_text("❌ Reply turi būti į žinutę su Telegram Premium custom emoji.")
+        return
+    rb.set_setting(f"prada_ui_icon_{key}", str(custom))
+    await update.effective_message.reply_text(f"✅ Custom emoji išsaugotas: {key}")
+
+
 async def resetui_cmd(update, context):
     if not await rb.require_admin(update, context):
         return
     rb.set_setting("prada_ui_home_text", "")
     for key in BUTTON_KEYS:
         rb.set_setting(f"prada_ui_button_{key}", "")
+        rb.set_setting(f"prada_ui_icon_{key}", "")
     context.user_data.pop("prada_ui_edit", None)
     await update.effective_message.reply_text("✅ UI grąžintas į default.")
     try:
@@ -260,6 +325,39 @@ async def ui_text_input(update, context):
             parse_mode="HTML",
             reply_markup=dynamic_user_menu(True),
         )
+        return
+
+    if pending.startswith("icon:"):
+        key = pending.split(":", 1)[1]
+        if key not in BUTTON_DEFAULTS:
+            context.user_data.pop("prada_ui_edit", None)
+            return
+        entities = list(update.effective_message.entities or [])
+        custom = next(
+            (
+                getattr(entity, "custom_emoji_id", None)
+                for entity in entities
+                if getattr(entity, "type", None) == "custom_emoji"
+                and getattr(entity, "custom_emoji_id", None)
+            ),
+            None,
+        )
+        if not custom:
+            await update.effective_message.reply_text(
+                "❌ Neradau Telegram CUSTOM EMOJI.\n"
+                "Atsiųsk vieną Premium custom emoji iš Telegram emoji panelės (ne paprastą Unicode emoji)."
+            )
+            return
+        rb.set_setting(f"prada_ui_icon_{key}", str(custom))
+        context.user_data.pop("prada_ui_edit", None)
+        await update.effective_message.reply_text(
+            f"✅ Custom emoji išsaugotas mygtukui: {button_label(key)}",
+            reply_markup=ui_buttons_menu(),
+        )
+        try:
+            await rb.refresh_live_leaderboard(context.application)
+        except Exception:
+            pass
         return
 
     if pending.startswith("button:"):
@@ -323,18 +421,67 @@ async def on_button(update, context):
         )
         return
 
-    if data.startswith("ui_btn_"):
-        key = data[len("ui_btn_"):]
+    if data.startswith("ui_btntext_"):
+        key = data[len("ui_btntext_"):]
         if key not in BUTTON_DEFAULTS:
             return
         context.user_data["prada_ui_edit"] = f"button:{key}"
         await q.edit_message_text(
             f"<b>{rb.esc(button_label(key))}</b>\n\n"
-            "Atsiųsk naują šio mygtuko pavadinimą viena žinute (iki 64 simbolių).",
+            "Atsiųsk naują šio mygtuko tekstą viena žinute (iki 64 simbolių).",
             parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
-                [[p.button("ATŠAUKTI", key="brand", callback_data="ui_buttons")]]
+                [[p.button("ATŠAUKTI", key="brand", callback_data=f"ui_btn_{key}")]]
             ),
+        )
+        return
+
+    if data.startswith("ui_btnemoji_"):
+        key = data[len("ui_btnemoji_"):]
+        if key not in BUTTON_DEFAULTS:
+            return
+        context.user_data["prada_ui_edit"] = f"icon:{key}"
+        await q.edit_message_text(
+            f"<b>{rb.esc(button_label(key))}</b>\n\n"
+            "Dabar atsiųsk <b>vieną Telegram Premium CUSTOM EMOJI</b>.\n"
+            "Botas nuskaitys jo custom emoji ID ir naudos kaip mygtuko ikoną.",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                [[p.button("ATŠAUKTI", key="brand", callback_data=f"ui_btn_{key}")]]
+            ),
+        )
+        return
+
+    if data.startswith("ui_btnclearicon_"):
+        key = data[len("ui_btnclearicon_"):]
+        if key not in BUTTON_DEFAULTS:
+            return
+        rb.set_setting(f"prada_ui_icon_{key}", "")
+        context.user_data.pop("prada_ui_edit", None)
+        await q.answer("Custom emoji nuimtas")
+        await q.edit_message_text(
+            f"<b>{rb.esc(button_label(key))}</b>\n\nCustom emoji nuimtas. Bus naudojama default pack ikona.",
+            parse_mode="HTML",
+            reply_markup=ui_button_edit_menu(key),
+        )
+        try:
+            await rb.refresh_live_leaderboard(context.application)
+        except Exception:
+            pass
+        return
+
+    if data.startswith("ui_btn_"):
+        key = data[len("ui_btn_"):]
+        if key not in BUTTON_DEFAULTS:
+            return
+        context.user_data.pop("prada_ui_edit", None)
+        icon_state = "asmeninis" if str(setting(f"prada_ui_icon_{key}", "") or "").strip() else "default"
+        await q.edit_message_text(
+            f"<b>{rb.esc(button_label(key))}</b>\n\n"
+            f"Custom emoji: <b>{icon_state}</b>\n"
+            "Pasirink ką keisti:",
+            parse_mode="HTML",
+            reply_markup=ui_button_edit_menu(key),
         )
         return
 
@@ -342,6 +489,7 @@ async def on_button(update, context):
         rb.set_setting("prada_ui_home_text", "")
         for key in BUTTON_KEYS:
             rb.set_setting(f"prada_ui_button_{key}", "")
+            rb.set_setting(f"prada_ui_icon_{key}", "")
         context.user_data.pop("prada_ui_edit", None)
         await q.edit_message_text("✅ UI grąžintas į default.", reply_markup=ui_editor_menu())
         try:
@@ -377,6 +525,7 @@ async def set_command_menus(application):
             BotCommand("uiedit", "Redaguoti /start ir mygtukus"),
             BotCommand("sethome", "Nustatyti /start tekstą"),
             BotCommand("setbtn", "Pervadinti mygtuką"),
+            BotCommand("setbtnicon", "Custom emoji mygtukui"),
             BotCommand("resetui", "Atstatyti UI"),
             BotCommand("addpoints", "Pridėti taškų"),
             BotCommand("takepoints", "Atimti taškų"),
@@ -458,6 +607,7 @@ def main():
         ("uiedit", uiedit_cmd),
         ("sethome", sethome_cmd),
         ("setbtn", setbtn_cmd),
+        ("setbtnicon", setbtnicon_cmd),
         ("resetui", resetui_cmd),
         ("ads", rb.ads_cmd),
         ("adsset", rb.adsset_cmd),
