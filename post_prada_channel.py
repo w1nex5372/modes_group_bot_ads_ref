@@ -84,24 +84,14 @@ def button(text: str, url: str, *, setting_key: str, fallback_pack_key: str, cus
     )
 
 
-def keyboard(bot_url: str, custom: bool = True):
+def keyboard(bot_url: str):
+    # Channel buttons intentionally use Unicode symbols instead of Telegram
+    # custom-emoji icons so they render reliably in broadcast channels.
     return InlineKeyboardMarkup(
         [
             [
-                button(
-                    channel_label("channel_group", "GRUPĖ"),
-                    GROUP_PUBLIC_URL,
-                    setting_key="channel_group",
-                    fallback_pack_key="group",
-                    custom=custom,
-                ),
-                button(
-                    channel_label("channel_invite", "MANO INVITE"),
-                    bot_url,
-                    setting_key="channel_invite",
-                    fallback_pack_key="invite",
-                    custom=custom,
-                ),
+                InlineKeyboardButton("♛ GRUPĖ", url=GROUP_PUBLIC_URL),
+                InlineKeyboardButton("✦ MANO INVITE", url=bot_url),
             ],
         ]
     )
@@ -150,17 +140,9 @@ async def send_one(bot: Bot, kind: str, pin: bool):
         photo=image.read_bytes(),
         caption=caption,
         parse_mode=ParseMode.HTML,
-        reply_markup=keyboard(bot_url, custom=True),
+        reply_markup=keyboard(bot_url),
     )
-    try:
-        msg = await bot.send_photo(**kwargs)
-    except BadRequest as exc:
-        # Some bots/accounts may not be eligible for custom emoji icons on buttons.
-        if "emoji" not in str(exc).lower():
-            raise
-        print("⚠️ Telegram custom emoji iconų nepriėmė — siunčiu tuos pačius button tekstus be custom ikonų.")
-        kwargs["reply_markup"] = keyboard(bot_url, custom=False)
-        msg = await bot.send_photo(**kwargs)
+    msg = await bot.send_photo(**kwargs)
 
     print(f"✅ {kind}: išsiųsta į {CHANNEL_CHAT} · message_id={msg.message_id}")
     if pin:
