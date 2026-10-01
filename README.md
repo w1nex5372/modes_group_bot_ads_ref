@@ -156,6 +156,12 @@ text or photo/video with a caption, and up to six HTTP(S) URL buttons.
 also queues one public post. Both avoid Rose entirely. Media from new ads
 is retained by this bot's `file_id`; historical media without one uses the
 original private source message if still accessible.
+Formatting and Telegram custom emoji entities in a newly submitted caption
+or text are saved and reused for previews and public sends. For a URL button,
+send its label with one custom emoji; the emoji becomes that button's icon.
+Telegram requires the bot owner to have Premium (or eligible Fragment usernames)
+for custom emoji in bot messages and buttons. Ads saved before this change have
+no stored emoji IDs and must be edited/re-sent once to acquire them.
 
 `VISOS REKLAMOS` lists managed ads and any legacy names without saved
 content. A managed ad can be previewed, edited, sent once, selected for

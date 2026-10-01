@@ -527,21 +527,32 @@ async def send_direct_ad(bot, note, lane):
         return False
     buttons = json.loads(row["buttons_json"])
     markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(button["label"], url=button["url"])] for button in buttons
+        [InlineKeyboardButton(
+            button["label"], url=button["url"],
+            icon_custom_emoji_id=button.get("icon_custom_emoji_id"),
+        )] for button in buttons
     ]) if buttons else None
     common = {"chat_id": ROSE_ADS_CHAT, "reply_markup": markup, "disable_notification": True}
+    entities = ads_builder.message_entities(row["entities_json"])
     try:
         if row["kind"] == "text":
-            sent = await bot.send_message(text=row["body"], **common)
+            sent = await bot.send_message(text=row["body"], entities=entities or None, **common)
         elif row["media_file_id"]:
             if row["kind"] == "photo":
-                sent = await bot.send_photo(photo=row["media_file_id"], caption=row["body"], **common)
+                sent = await bot.send_photo(
+                    photo=row["media_file_id"], caption=row["body"],
+                    caption_entities=entities or None, **common,
+                )
             else:
-                sent = await bot.send_video(video=row["media_file_id"], caption=row["body"], **common)
+                sent = await bot.send_video(
+                    video=row["media_file_id"], caption=row["body"],
+                    caption_entities=entities or None, **common,
+                )
         else:
             sent = await bot.copy_message(
                 from_chat_id=row["source_chat_id"] or row["admin_id"],
-                message_id=row["source_message_id"], caption=row["body"], **common,
+                message_id=row["source_message_id"], caption=row["body"],
+                caption_entities=entities or None, **common,
             )
     except Exception as exc:
         set_setting("ads_enabled", "0")

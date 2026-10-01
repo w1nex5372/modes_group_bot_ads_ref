@@ -600,8 +600,27 @@ def ads_builder_links(buttons):
     if not buttons:
         return None
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton(button["label"], url=button["url"])] for button in buttons
+        [InlineKeyboardButton(
+            button["label"], url=button["url"],
+            icon_custom_emoji_id=button.get("icon_custom_emoji_id"),
+        )] for button in buttons
     ])
+
+
+def ads_button_label_with_icon(message):
+    """A Telegram custom emoji in a label becomes the URL button's icon."""
+    label = message.text or ""
+    custom = [entity for entity in (getattr(message, "entities", None) or [])
+              if entity.type == "custom_emoji"]
+    if len(custom) > 1:
+        raise ValueError("URL mygtukas gali turėti tik vieną custom emoji")
+    if not custom:
+        return label.strip(), ""
+    entity = custom[0]
+    encoded = label.encode("utf-16-le")
+    start, end = entity.offset * 2, (entity.offset + entity.length) * 2
+    label = (encoded[:start] + encoded[end:]).decode("utf-16-le").strip()
+    return label, str(entity.custom_emoji_id or "")
 
 
 def ads_builder_draft_from_row(row, step="confirm"):
@@ -610,6 +629,7 @@ def ads_builder_draft_from_row(row, step="confirm"):
         "source_message_id": row["source_message_id"],
         "source_chat_id": row["source_chat_id"] or row["admin_id"],
         "media_file_id": row.get("media_file_id", ""),
+        "entities": json.loads(row.get("entities_json", "[]")),
         "buttons": json.loads(row["buttons_json"]),
     }
 
@@ -620,23 +640,25 @@ async def ads_builder_preview(update, context, draft):
     ads_builder.validate_direct_size(draft["kind"], draft["body"], buttons)
     await msg.reply_text(f"👀 Peržiūra · {draft['note']}:")
     markup = ads_builder_links(buttons)
+    entities = ads_builder.message_entities(json.dumps(draft.get("entities", [])))
     if draft["kind"] == "text":
         await context.bot.send_message(
             chat_id=update.effective_chat.id, text=draft["body"], reply_markup=markup,
+            entities=entities or None,
         )
     elif draft.get("media_file_id"):
         method = context.bot.send_video if draft["kind"] == "video" else context.bot.send_photo
         media_arg = "video" if draft["kind"] == "video" else "photo"
         await method(
             chat_id=update.effective_chat.id, **{media_arg: draft["media_file_id"]},
-            caption=draft["body"], reply_markup=markup,
+            caption=draft["body"], reply_markup=markup, caption_entities=entities or None,
         )
     else:
         await context.bot.copy_message(
             chat_id=update.effective_chat.id,
             from_chat_id=draft["source_chat_id"],
             message_id=draft["source_message_id"],
-            caption=draft["body"], reply_markup=markup,
+            caption=draft["body"], reply_markup=markup, caption_entities=entities or None,
         )
     await msg.reply_text(
         "Gali pridėti URL mygtukus arba išsaugoti. „Išsaugoti ir siųsti“ "
@@ -980,7 +1002,10 @@ async def ads_builder_extended_button(update, context):
             return True
         draft["step"] = "button_label"
         draft["button_index"] = None
-        await q.edit_message_text("Atsiųsk URL mygtuko pavadinimą (iki 40 simbolių).", reply_markup=ads_builder_back_menu())
+        await q.edit_message_text(
+            "Atsiųsk URL mygtuko pavadinimą (iki 40 simbolių). Gali įdėti vieną custom emoji — jis bus mygtuko ikona.",
+            reply_markup=ads_builder_back_menu(),
+        )
         return True
     if data.startswith("adsb_be_") or data.startswith("adsb_bd_"):
         draft = context.user_data.get("ads_builder")
@@ -995,7 +1020,10 @@ async def ads_builder_extended_button(update, context):
         else:
             draft["step"] = "button_label"
             draft["button_index"] = index
-            await q.edit_message_text("Atsiųsk naują šio mygtuko pavadinimą (iki 40 simbolių).", reply_markup=ads_builder_back_menu())
+            await q.edit_message_text(
+                "Atsiųsk naują pavadinimą (iki 40 simbolių). Jei nori custom emoji ikonos, įdėk ją į šią žinutę.",
+                reply_markup=ads_builder_back_menu(),
+            )
         return True
     if data == "adsb_bdone":
         draft = context.user_data.get("ads_builder")
@@ -1174,6 +1202,7 @@ async def ads_builder_button(update, context):
         draft["kind"], draft["body"],
         buttons=draft.get("buttons", []), source_chat_id=draft.get("source_chat_id"),
         media_file_id=draft.get("media_file_id", ""),
+        entities=draft.get("entities", []),
     )
     if data == "adsb_launch":
         rb.set_setting("ads_force_job_id", str(job_id))
@@ -1194,6 +1223,7 @@ async def ads_builder_capture(update, context, kind, body):
         return True
     msg = update.effective_message
     if draft.get("step") == "name":
+        body = body.strip()
         if kind != "text" or not ads_builder.NAME_RE.fullmatch(body):
             await msg.reply_text("Pavadinimas netinka. Naudok 1–64 raides / skaičius / _ / -.", reply_markup=ads_builder_back_menu())
             return True
@@ -1207,11 +1237,13 @@ async def ads_builder_capture(update, context, kind, body):
             await msg.reply_text("Atsiųsk mygtuko pavadinimą kaip tekstą.", reply_markup=ads_builder_back_menu())
             return True
         try:
-            ads_builder.validate_button(body, "https://example.com")
-        except ValueError:
-            await msg.reply_text("Pavadinimas turi būti 1–40 simbolių, be [ ] ( ).", reply_markup=ads_builder_back_menu())
+            label, icon_id = ads_button_label_with_icon(msg)
+            ads_builder.validate_button(label, "https://example.com", icon_id)
+        except ValueError as exc:
+            await msg.reply_text(f"Netinkamas pavadinimas: {exc}. Naudok 1–40 simbolių ir daugiausia vieną custom emoji.", reply_markup=ads_builder_back_menu())
             return True
-        draft["button_label"] = body
+        draft["button_label"] = label
+        draft["button_icon_id"] = icon_id
         draft["step"] = "button_url"
         await msg.reply_text("Dabar atsiųsk pilną URL, prasidedantį https:// arba http://.", reply_markup=ads_builder_back_menu())
         return True
@@ -1220,7 +1252,9 @@ async def ads_builder_capture(update, context, kind, body):
             await msg.reply_text("Atsiųsk URL kaip tekstą.", reply_markup=ads_builder_back_menu())
             return True
         try:
-            button = ads_builder.validate_button(draft["button_label"], body)
+            button = ads_builder.validate_button(
+                draft["button_label"], body.strip(), draft.get("button_icon_id", ""),
+            )
             proposed = list(draft.get("buttons", []))
             index = draft.get("button_index")
             if index is None:
@@ -1234,16 +1268,17 @@ async def ads_builder_capture(update, context, kind, body):
         draft["buttons"] = proposed
         draft["step"] = "confirm"
         draft.pop("button_label", None)
+        draft.pop("button_icon_id", None)
         draft.pop("button_index", None)
         await ads_builder_preview(update, context, draft)
         return True
     if draft.get("step") != "content":
         return True
-    if kind in {"photo", "video"} and not body:
+    if kind in {"photo", "video"} and not body.strip():
         await msg.reply_text("Pridėk caption prie nuotraukos / video ir atsiųsk dar kartą.", reply_markup=ads_builder_back_menu())
         return True
     limit = 4096 if kind == "text" else 1024
-    if not body or len(body) > limit:
+    if not body.strip() or len(body) > limit:
         await msg.reply_text(f"ADS tekstas turi būti 1–{limit} simbolių.", reply_markup=ads_builder_back_menu())
         return True
     try:
@@ -1255,16 +1290,21 @@ async def ads_builder_capture(update, context, kind, body):
         msg.video.file_id if kind == "video" and msg.video else
         msg.photo[-1].file_id if kind == "photo" and msg.photo else ""
     )
+    source_entities = getattr(msg, "entities" if kind == "text" else "caption_entities", None)
+    entities = ads_builder.normalize_entities(
+        [entity.to_dict() for entity in (source_entities or [])], body,
+    )
     draft.update(
         step="confirm", kind=kind, body=body, source_message_id=msg.message_id,
         source_chat_id=update.effective_chat.id, media_file_id=media_file_id,
+        entities=entities,
     )
     await ads_builder_preview(update, context, draft)
     return True
 
 
 async def ads_builder_input(update, context):
-    return await ads_builder_capture(update, context, "text", (update.effective_message.text or "").strip())
+    return await ads_builder_capture(update, context, "text", update.effective_message.text or "")
 
 
 async def ads_builder_media(update, context):
@@ -1273,7 +1313,7 @@ async def ads_builder_media(update, context):
         if context.user_data.get("ads_builder"):
             await msg.reply_text("Video per didelis. Maksimaliai 50 MB.")
         return
-    await ads_builder_capture(update, context, "video" if msg.video else "photo", (msg.caption or "").strip())
+    await ads_builder_capture(update, context, "video" if msg.video else "photo", msg.caption or "")
 
 
 async def ui_text_input(update, context):

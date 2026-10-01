@@ -40,13 +40,14 @@ def init(db_path):
             ("source_chat_id", "INTEGER NOT NULL DEFAULT 0"),
             ("operation", "TEXT NOT NULL DEFAULT 'save'"),
             ("media_file_id", "TEXT NOT NULL DEFAULT ''"),
+            ("entities_json", "TEXT NOT NULL DEFAULT '[]'"),
         ):
             if column not in existing:
                 conn.execute(f"ALTER TABLE ads_builder_jobs ADD COLUMN {column} {definition}")
         conn.commit()
 
 
-def validate_button(label, url):
+def validate_button(label, url, icon_custom_emoji_id=""):
     label = str(label).strip()
     url = str(url).strip()
     if not BUTTON_LABEL_RE.fullmatch(label) or any(ord(c) < 32 or ord(c) == 127 for c in label):
@@ -56,13 +57,49 @@ def validate_button(label, url):
     parsed = urlsplit(url)
     if parsed.scheme not in {"https", "http"} or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("Button URL must be an HTTP(S) link")
-    return {"label": label, "url": url}
+    button = {"label": label, "url": url}
+    if icon_custom_emoji_id:
+        icon = str(icon_custom_emoji_id).strip()
+        if not icon.isascii() or not icon.isdecimal() or len(icon) > 25:
+            raise ValueError("Invalid custom emoji ID")
+        button["icon_custom_emoji_id"] = icon
+    return button
 
 
 def normalize_buttons(buttons):
     if not isinstance(buttons, list) or len(buttons) > 6:
         raise ValueError("Maximum 6 buttons")
-    return [validate_button(item["label"], item["url"]) for item in buttons]
+    return [validate_button(item["label"], item["url"], item.get("icon_custom_emoji_id", ""))
+            for item in buttons]
+
+
+def normalize_entities(entities, body):
+    """Keep Telegram UTF-16 entity offsets and reject malformed stored formatting."""
+    if not isinstance(entities, (list, tuple)) or len(entities) > 100:
+        raise ValueError("Invalid ad entities")
+    length = len(body.encode("utf-16-le")) // 2
+    result = []
+    for value in entities:
+        if not isinstance(value, dict):
+            raise ValueError("Invalid ad entity")
+        item = dict(value)
+        if (not isinstance(item.get("type"), str)
+                or type(item.get("offset")) is not int
+                or type(item.get("length")) is not int
+                or item["offset"] < 0 or item["length"] < 1
+                or item["offset"] + item["length"] > length):
+            raise ValueError("Invalid ad entity offset")
+        if item["type"] == "custom_emoji" and not str(item.get("custom_emoji_id", "")).isdecimal():
+            raise ValueError("Invalid custom emoji entity")
+        result.append(item)
+    return result
+
+
+def message_entities(entities_json):
+    """Rehydrate the Bot API entities stored with an ad."""
+    from telegram import MessageEntity
+
+    return [MessageEntity.de_json(item) for item in json.loads(entities_json or "[]")]
 
 
 def render_rose_body(body, buttons):
@@ -129,12 +166,13 @@ def enqueue_delete(db_path, note, admin_id):
 
 
 def save_direct(db_path, note, admin_id, source_message_id, kind, body,
-                buttons=None, source_chat_id=None, media_file_id=""):
+                buttons=None, source_chat_id=None, media_file_id="", entities=None):
     """Persist an ad locally; no Rose command or group send is required."""
     if not NAME_RE.fullmatch(note) or kind not in {"text", "photo", "video"}:
         raise ValueError("Invalid ad name or kind")
     buttons = normalize_buttons(buttons or [])
     validate_direct_size(kind, body, buttons)
+    entities = normalize_entities(entities or [], body)
     if kind in {"photo", "video"} and not (media_file_id or source_message_id):
         raise ValueError("Media reference missing")
     now = time.time()
@@ -142,11 +180,11 @@ def save_direct(db_path, note, admin_id, source_message_id, kind, body,
         cursor = conn.execute(
             """INSERT INTO ads_builder_jobs
             (note,admin_id,source_message_id,kind,body,launch_now,status,error,
-             created_at,updated_at,buttons_json,source_chat_id,operation,media_file_id)
-            VALUES (?,?,?,?,?,0,'verified','',?,?,?,?, 'save',?)""",
+             created_at,updated_at,buttons_json,source_chat_id,operation,media_file_id,entities_json)
+            VALUES (?,?,?,?,?,0,'verified','',?,?,?,?, 'save',?,?)""",
             (note, admin_id, source_message_id or 0, kind, body, now, now,
              json.dumps(buttons, ensure_ascii=False), source_chat_id or admin_id,
-             media_file_id or ""),
+             media_file_id or "", json.dumps(entities, ensure_ascii=False)),
         )
         conn.commit()
         return cursor.lastrowid
