@@ -17,6 +17,7 @@ from telegram.constants import ParseMode
 
 BRAND_NAME = os.getenv("PRADA_BRAND_NAME", "PRADA LUX").strip() or "PRADA LUX"
 GROUP_LABEL = os.getenv("PRADA_GROUP_LABEL", "PRADA LUX CLUB").strip() or "PRADA LUX CLUB"
+JACKIE_THEME = BRAND_NAME.casefold() == "jackie chan"
 DISCLAIMER = os.getenv(
     "PRADA_DISCLAIMER",
     "Neoficiali luxury fashion bendruomenė · nesusijusi su Prada S.p.A.",
@@ -43,7 +44,7 @@ def brand_line():
 
 
 def share_url(invite_link: str):
-    text = f"Prisijunk prie {GROUP_LABEL} · luxury fashion community"
+    text = f"Prisijunk prie {GROUP_LABEL} · kvietimai, taškai ir TOP"
     return f"https://t.me/share/url?url={quote(invite_link, safe='')}&text={quote(text, safe='')}"
 
 
@@ -135,6 +136,17 @@ def native_ad_markup(application):
 
 
 def home_text():
+    if JACKIE_THEME:
+        return (
+            f"{brand_line()}\n"
+            f"<b>{rb.esc(GROUP_LABEL)}</b> · kvietimų dojo 🥋\n\n"
+            f"{rb.em('invite')} Pakviesk naują narį per savo nuorodą = <b>+1</b>\n"
+            f"{rb.em('add')} Pridėk narį per Add Members = <b>+1</b>\n\n"
+            f"{rb.em('trophy')} Savaitės TOP atsinaujina automatiškai\n"
+            f"{rb.em('stats')} Naujas raundas: pirmadienį 00:00\n\n"
+            f"{rb.em('share')} Pradėk nuo <b>MANO INVITE</b>. Drakonas už tave draugų nepakvies 🐉\n\n"
+            f"<i>{rb.esc(DISCLAIMER)}</i>"
+        )
     return (
         f"{brand_line()}\n"
         f"<b>{rb.esc(GROUP_LABEL)}</b> · Milano mood\n\n"
@@ -150,7 +162,7 @@ def home_text():
 
 def weekly_top_text(excluded=None):
     rows = rb.weekly_top(exclude_ids=excluded)
-    lines = [f"{rb.em('trophy')} <b>PRADA LUX · SAVAITĖS TOP 10</b>", ""]
+    lines = [f"{rb.em('trophy')} <b>{rb.esc(BRAND_NAME)} · SAVAITĖS TOP 10</b>", ""]
     lines += rb.ranking_lines(rows, "weekly_points", "tšk.") if rows else [
         f"{rb.em('brand')} TOP dar tuščias — būk pirmas"
     ]
@@ -160,7 +172,7 @@ def weekly_top_text(excluded=None):
 
 def alltime_top_text(excluded=None):
     rows = rb.alltime_top(exclude_ids=excluded)
-    lines = [f"{rb.em('stats')} <b>PRADA LUX · VISO LAIKO TOP 10</b>", ""]
+    lines = [f"{rb.em('stats')} <b>{rb.esc(BRAND_NAME)} · VISO LAIKO TOP 10</b>", ""]
     lines += rb.ranking_lines(rows, "points", "tšk.") if rows else [
         f"{rb.em('brand')} TOP dar tuščias"
     ]
@@ -184,7 +196,7 @@ def lastweek_top_text(excluded=None):
 
 def live_top_text(excluded=None):
     rows = rb.weekly_top(exclude_ids=excluded)
-    lines = [f"{rb.em('trophy')} <b>PRADA LUX · WEEKLY TOP · LIVE</b>", ""]
+    lines = [f"{rb.em('trophy')} <b>{rb.esc(BRAND_NAME)} · WEEKLY TOP · LIVE</b>", ""]
     lines += rb.ranking_lines(rows, "weekly_points", "tšk.") if rows else [
         f"{rb.em('brand')} Būk pirmas"
     ]
@@ -211,7 +223,19 @@ def invite_text(link):
 
 def contest_rose_caption(application):
     b = rb.bot_url(application, "invite") or "https://t.me/TAVO_BOTO_USERNAME"
-    g = rb.GROUP_PUBLIC_URL or "https://t.me/TAVO_PRADA_GRUPE"
+    g = rb.GROUP_PUBLIC_URL or "https://t.me/TAVO_GRUPE"
+    if JACKIE_THEME:
+        return "\n".join([
+            "🥋 JACKIE CHAN · KVIETIMŲ TOP",
+            "", "Pakviesk draugą į dojo ir kilk į TOP.", "",
+            "🔗 Invite nuoroda → +1 už naują narį",
+            "➕ Add Members → +1 už naują narį",
+            "🏆 Abu būdai sumuojasi", "",
+            "🐉 Naujas raundas: pirmadienį 00:00", "",
+            f"[GAUTI MANO INVITE](buttonurl://{b})",
+            f"[{GROUP_LABEL}](buttonurl://{g}:same)", "",
+            DISCLAIMER,
+        ])
     return "\n".join(
         [
             "◆ PRADA LUX · WEEKLY INVITE CLUB",
@@ -235,7 +259,17 @@ def contest_rose_caption(application):
 
 def promo_rose_caption(application):
     b = rb.bot_url(application, "invite") or "https://t.me/TAVO_BOTO_USERNAME"
-    g = rb.GROUP_PUBLIC_URL or "https://t.me/TAVO_PRADA_GRUPE"
+    g = rb.GROUP_PUBLIC_URL or "https://t.me/TAVO_GRUPE"
+    if JACKIE_THEME:
+        return "\n".join([
+            "🐉 JACKIE CHAN COMMUNITY", "",
+            "Kvietimai · taškai · savaitės TOP · bendruomenė", "",
+            "🥋 Įženk į dojo ir pasiimk savo invite nuorodą.",
+            "🏆 Rezultatai atsinaujina automatiškai.", "",
+            f"[ATIDARYTI BOTĄ](buttonurl://{b})",
+            f"[PRISIJUNGTI PRIE GRUPĖS](buttonurl://{g}:same)", "",
+            DISCLAIMER,
+        ])
     return "\n".join(
         [
             "◆ PRADA LUX COMMUNITY",
@@ -262,7 +296,7 @@ def ads_status_text():
         notes = []
     state = "ON" if rb.get_setting("ads_enabled", "0") == "1" else "OFF"
     return (
-        f"{rb.em('share')} <b>PRADA LUX · AUTO ADS</b>\n\n"
+        f"{rb.em('share')} <b>{rb.esc(BRAND_NAME)} · AUTO ADS</b>\n\n"
         f"{rb.em('brand')} Būsena: <b>{state}</b>\n"
         f"{rb.em('stats')} FAST: kas {rb.esc(rb.get_setting('ads_fast_interval_minutes','15'))} min.\n"
         f"{rb.em('stats')} NORMAL: kas {rb.esc(rb.get_setting('ads_interval_minutes','30'))} min.\n"
@@ -274,22 +308,38 @@ def ads_status_text():
 
 
 async def send_ad_preview(chat_id: int, context):
-    contest = ASSETS / "prada_ads" / "contest.webp"
-    promo = ASSETS / "prada_ads" / "promo.webp"
-    contest_text = (
-        f"{rb.em('trophy')} <b>PRADA LUX · WEEKLY INVITE CLUB</b>\n\n"
-        f"{rb.em('invite')} Invite = <b>+1</b> už naują narį\n"
-        f"{rb.em('add')} Add Members = <b>+1</b>\n"
-        f"{rb.em('stats')} Reset: pirmadienį 00:00\n\n"
-        f"{brand_line()}"
-    )
-    promo_text = (
-        f"{rb.em('brand')} <b>PRADA LUX COMMUNITY</b>\n\n"
-        f"Luxury fashion · stilius · bendruomenė\n"
-        f"{rb.em('trophy')} Weekly TOP\n"
-        f"{rb.em('stats')} Live rezultatai\n\n"
-        f"<i>{rb.esc(DISCLAIMER)}</i>"
-    )
+    contest = ASSETS / "jackie_shop.png" if JACKIE_THEME else ASSETS / "prada_ads" / "contest.webp"
+    promo = ASSETS / "jackie_shop.png" if JACKIE_THEME else ASSETS / "prada_ads" / "promo.webp"
+    if JACKIE_THEME:
+        contest_text = (
+            f"{rb.em('trophy')} <b>{rb.esc(BRAND_NAME)} · KVIETIMŲ TOP</b>\n\n"
+            f"{rb.em('invite')} Invite = <b>+1</b> už naują narį\n"
+            f"{rb.em('add')} Add Members = <b>+1</b>\n"
+            f"{rb.em('stats')} Naujas raundas: pirmadienį 00:00\n\n"
+            f"{brand_line()}"
+        )
+        promo_text = (
+            f"{rb.em('brand')} <b>{rb.esc(BRAND_NAME)} COMMUNITY</b>\n\n"
+            f"Kvietimai · taškai · bendruomenė\n"
+            f"{rb.em('trophy')} Savaitės TOP\n"
+            f"{rb.em('stats')} LIVE rezultatai\n\n"
+            f"<i>{rb.esc(DISCLAIMER)}</i>"
+        )
+    else:
+        contest_text = (
+            f"{rb.em('trophy')} <b>PRADA LUX · WEEKLY INVITE CLUB</b>\n\n"
+            f"{rb.em('invite')} Invite = <b>+1</b> už naują narį\n"
+            f"{rb.em('add')} Add Members = <b>+1</b>\n"
+            f"{rb.em('stats')} Reset: pirmadienį 00:00\n\n"
+            f"{brand_line()}"
+        )
+        promo_text = (
+            f"{rb.em('brand')} <b>PRADA LUX COMMUNITY</b>\n\n"
+            f"Luxury fashion · stilius · bendruomenė\n"
+            f"{rb.em('trophy')} Weekly TOP\n"
+            f"{rb.em('stats')} Live rezultatai\n\n"
+            f"<i>{rb.esc(DISCLAIMER)}</i>"
+        )
     markup = native_ad_markup(context.application)
     if contest.exists():
         await context.bot.send_photo(
@@ -382,6 +432,14 @@ bb.set_command_menus = set_command_menus
 
 # Patch helpers used directly from referral_bot inside branded handlers.
 rb.share_url = share_url
+rb.invite_text = invite_text
+rb.weekly_top_text = weekly_top_text
+rb.alltime_top_text = alltime_top_text
+rb.lastweek_top_text = lastweek_top_text
+rb.live_top_text = live_top_text
+rb.contest_rose_caption = contest_rose_caption
+rb.promo_rose_caption = promo_rose_caption
+rb.ads_status_text = ads_status_text
 rb.user_menu = user_menu
 rb.admin_menu = admin_menu
 rb.invite_markup = invite_markup

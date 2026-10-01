@@ -5,7 +5,10 @@ import time
 
 from dotenv import load_dotenv
 
+from community_config import apply_staged_community_config
+
 load_dotenv()
+JACKIE_ACTIVE = apply_staged_community_config()
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
@@ -19,7 +22,7 @@ def start(name, script):
 
 def bot_process():
     if THEME in {"prada", "prada_lux", "prada-lux"}:
-        return ("PRADA LUX botas", "prada_safe.py")
+        return ("JACKIE CHAN botas" if JACKIE_ACTIVE else "PRADA LUX botas", "prada_safe.py")
     return ("NERA DROPO botas", "live_ui.py")
 
 
@@ -29,7 +32,7 @@ def main():
         ("Auto forwarderis / Rose ADS", "forwarder.py"),
     ]
 
-    print(f"Brand theme: {THEME}")
+    print(f"Brand theme: {'jackie_chan' if JACKIE_ACTIVE else THEME}")
     running = [start(name, script) for name, script in procs]
 
     try:
